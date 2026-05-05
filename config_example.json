@@ -1,0 +1,14 @@
+{
+    "telegram":{
+        "API_ID":0,
+        "API_HASH":"",
+        "TOKEN_BOT":"",
+        "ADMIN_ID":""
+    },
+    "Bale":{
+        "TOKEN_BOT":""
+    },
+    "Rubika":{
+        "TOKEN_BOT":""
+    }
+}

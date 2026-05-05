@@ -1,0 +1,7 @@
+config.json
+/.venv
+bot.session
+users.json
+downloads/photo_2026-05-05_07-00-25_7636275805873504260.jpg
+__pycache__/telegram.cpython-312.pyc
+__pycache__/bale.cpython-312.pyc
