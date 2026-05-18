@@ -152,3 +152,39 @@ async def set_cooldown(tg_id: int, cooldown: str) -> None:
             SET cooldown = ?, updated_at = datetime('now','localtime')
             WHERE telegram_id = ?
         """, (cooldown, tg_id))
+
+async def get_verify_code(tg_id: int) -> tuple[int, str]:
+    """دریافت کد تأیید و زمان انقضای آن"""
+    async with get_async_db() as db:
+        cursor = await db.execute(
+            "SELECT verify_code, verify_code_expire FROM users WHERE telegram_id = ?", (tg_id,)
+        )
+        row = await cursor.fetchone()
+        return (row["verify_code"], row["verify_code_expire"]) if row else (0, "")
+
+async def set_verified(tg_id: int, verified: bool = True) -> None:
+    """تنظیم وضعیت تأیید کاربر"""
+    async with get_async_db() as db:
+        await db.execute("""
+            UPDATE users
+            SET is_verified = ?, updated_at = datetime('now','localtime')
+            WHERE telegram_id = ?
+        """, (int(verified), tg_id))
+
+async def verify_check(tg_id: int) -> bool:
+    """دریافت وضعیت تأیید کاربر"""
+    async with get_async_db() as db:
+        cursor = await db.execute(
+            "SELECT is_verified FROM users WHERE telegram_id = ?", (tg_id,)
+        )
+        row = await cursor.fetchone()
+        return bool(row["is_verified"]) if row else False
+
+async def save_support_message(tg_id: int, message_text: str) -> None:
+    """ذخیره پیام پشتیبانی کاربر"""
+    async with get_async_db() as db:
+        await db.execute("""
+            INSERT INTO support_messages (telegram_id, message_text)
+            VALUES (?, ?)
+        """, (tg_id, message_text))
+    logger.info(f"[MODEL-ASYNC][INFO] پیام پشتیبانی از {tg_id} ذخیره شد.")

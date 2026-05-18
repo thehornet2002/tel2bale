@@ -1,5 +1,5 @@
 from pyrogram.types import Message
-from db.model_acync import set_state, check_admin
+from db.model_acync import set_state, check_admin, verify_check
 from config import START_TXT, HELP_TXT
 from utils.keyboards import build_start_keyboard, build_back_keyboard, build_management_keyboard
 from db.db_sync import DB_NAME
@@ -19,10 +19,18 @@ async def back(message:Message, user_id):
 
 async def set_bale_id(message:Message, user_id):
         await set_state(user_id,'enter_bale_id')
-        await message.edit_text(
-            'لطفا ID عددی بله خود را وارد کنید:',
-            reply_markup=build_back_keyboard()
-        )
+        is_verify = await verify_check(user_id)
+        is_admin = await check_admin(user_id)
+        if is_verify:
+            await message.edit_text(
+                'شما قبلا احراز هویت شده اید.',
+                reply_markup=build_start_keyboard(is_admin)
+            )
+        else:
+            await message.edit_text(
+                'لطفا ID عددی بله خود را وارد کنید:',
+                reply_markup=build_back_keyboard()
+            )
 
 async def help(message:Message, user_id):
         await set_state(user_id,'home')
