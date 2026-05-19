@@ -188,3 +188,51 @@ async def save_support_message(tg_id: int, message_text: str) -> None:
             VALUES (?, ?)
         """, (tg_id, message_text))
     logger.info(f"[MODEL-ASYNC][INFO] پیام پشتیبانی از {tg_id} ذخیره شد.")
+
+
+async def get_telegram_ids_by_bale_id(bale_id: int) -> list[int]:
+    """دریافت لیست telegram_id کاربرانی که bale_id آن‌ها برابر مقدار داده شده است"""
+    async with get_async_db() as db:
+        cursor = await db.execute(
+            "SELECT telegram_id FROM users WHERE bale_id = ?", (bale_id,)
+        )
+        rows = await cursor.fetchall()
+        return [row["telegram_id"] for row in rows]
+
+async def ban_user(tg_id: int) -> bool:
+    """بن کردن کاربر با telegram_id — True اگر موفق، False اگر کاربر پیدا نشد"""
+    async with get_async_db() as db:
+        cursor = await db.execute("""
+            UPDATE users
+            SET is_banned = 1, updated_at = datetime('now','localtime')
+            WHERE telegram_id = ?
+        """, (tg_id,))
+        success = cursor.rowcount > 0
+    if success:
+        logger.warning(f"[MODEL-ASYNC][WARNING] کاربر بن شد: {tg_id}")
+    return success
+
+async def set_bale_id(tg_id: int, bale_id: int) -> None:
+    """ثبت bale_id کاربر"""
+    async with get_async_db() as db:
+        await db.execute("""
+            UPDATE users
+            SET bale_id = ?, updated_at = datetime('now','localtime')
+            WHERE telegram_id = ?
+        """, (bale_id, tg_id))
+    logger.info(f"[MODEL-ASYNC][INFO] bale_id کاربر {tg_id} به {bale_id} تنظیم شد.")
+
+
+async def unban_user(tg_id: int) -> bool:
+    """آنبن کردن کاربر با telegram_id — True اگر موفق، False اگر کاربر پیدا نشد"""
+    async with get_async_db() as db:
+        cursor = await db.execute("""
+            UPDATE users
+            SET is_banned = 0, updated_at = datetime('now','localtime')
+            WHERE telegram_id = ?
+        """, (tg_id,))
+        success = cursor.rowcount > 0
+    if success:
+        logger.info(f"[MODEL-ASYNC][INFO] کاربر آنبن شد: {tg_id}")
+    return success
+

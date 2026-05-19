@@ -43,7 +43,7 @@ def build_back_management_keyboard():
 def build_management_keyboard():
     rows = [
         [
-            InlineKeyboardButton(text='دریافت فایل دیتابیس',callback_data='get_user_json')
+            InlineKeyboardButton(text='دریافت فایل دیتابیس',callback_data='get_db')
         ],
         [
             InlineKeyboardButton(text='بن با ID بله',callback_data='ban_bale_id'),

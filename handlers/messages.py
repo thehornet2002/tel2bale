@@ -1,7 +1,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from db.model_acync import check_ban, is_user_exist, get_state
-from handlers.handler_helpers.message_helper import enter_bale_id, enter_verify_code, send_support_message
+from handlers.handler_helpers.message_helper import enter_bale_id, enter_verify_code, send_support_message, enter_bale_ban, enter_bale_unban
 from utils.filters import join_filter
 
 
@@ -20,3 +20,8 @@ async def handle_input(client: Client, message: Message):
         await enter_verify_code(message, user_id)
     elif state == 'send_support_message':
         await send_support_message(message, user_id)
+    elif state == 'enter_bale_ban':
+        await enter_bale_ban(message, user_id)
+    elif state == 'enter_bale_unban':
+        await enter_bale_unban(message, user_id)
+    

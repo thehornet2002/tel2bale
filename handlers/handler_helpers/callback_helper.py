@@ -1,7 +1,7 @@
 from pyrogram.types import Message
 from db.model_acync import set_state, check_admin, verify_check
 from config import START_TXT, HELP_TXT
-from utils.keyboards import build_start_keyboard, build_back_keyboard, build_management_keyboard
+from utils.keyboards import build_start_keyboard, build_back_keyboard, build_management_keyboard, build_back_management_keyboard
 from db.db_sync import DB_NAME
 from db.model_acync import add_user, is_user_exist
 
@@ -86,3 +86,22 @@ async def start(message:Message, user_id):
         START_TXT,
         reply_markup=build_start_keyboard(is_admin)
     )
+
+async def ban_bale(message:Message, user_id):
+    is_admin = await check_admin(user_id)
+    if is_admin:
+        await set_state(user_id,'enter_bale_ban')
+        await message.reply_text(
+             "لطفا ID عددی بله کسی را که می خواهید بن کنید را وارد نمایید.",
+             reply_markup=build_back_management_keyboard()
+        )
+
+
+async def unban_bale(message:Message, user_id):
+    is_admin = await check_admin(user_id)
+    if is_admin:
+        await set_state(user_id, 'enter_bale_unban')
+        await message.reply_text(
+             'لطفا ID عددی بله کسی را که می خواهید آنبن کنید را وارد کنید.',
+             reply_markup=build_back_management_keyboard()
+        )

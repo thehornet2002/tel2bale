@@ -1,8 +1,8 @@
 from pyrogram.types import Message
-from db.model_acync import get_send_attempts, get_cooldown, set_send_attempts, set_cooldown, set_verify_code, set_state, get_verify_code, set_verified, check_admin,save_support_message
+from db.model_acync import get_send_attempts, get_cooldown, set_send_attempts, set_cooldown, set_verify_code, set_state, get_verify_code, set_verified, check_admin,save_support_message, get_telegram_ids_by_bale_id, ban_user, set_bale_id, unban_user
 from utils.code_generator import generate_random_code
 from services.bale_service import send_verify_code
-from utils.keyboards import build_start_keyboard, build_back_keyboard
+from utils.keyboards import build_start_keyboard, build_back_keyboard, build_back_management_keyboard
 import time
 
 
@@ -29,6 +29,7 @@ async def enter_bale_id(message:Message, user_id:int):
         await set_verify_code(user_id,code,str(int(time.time())+120))
         await send_verify_code(id_num,str(code))
         await set_state(user_id, 'enter_verify_code')
+        await set_bale_id(user_id,id_num)
         await message.reply_text(
              'کد احراز هویت برای اکانت بله شما ارسال شد. لطفا کد را وارد کنید',
              reply_markup=build_back_keyboard()
@@ -69,4 +70,38 @@ async def send_support_message(message:Message, user_id:int):
         await message.reply_text(
              'پیام شما با موفقیت ارسال شد',
              reply_markup=build_back_keyboard()
+        )
+
+
+async def enter_bale_ban(message:Message, user_id:int):
+    user_id = message.from_user.id
+    is_admin = await check_admin(user_id)
+    if is_admin :
+        if not message.text.isdigit():
+            await message.reply_text("لطفا فقط شناسه عددی ارسال کنید.")
+            return
+        bale_id = int(message.text)
+        tg_ids = await get_telegram_ids_by_bale_id(bale_id=bale_id)
+        for i in tg_ids:
+            await ban_user(i)
+        await message.reply_text(
+            'کاربر با خاک یکسان شد.',
+            reply_markup=build_back_management_keyboard()
+        )
+
+
+async def enter_bale_unban(message:Message, userid:int):
+    user_id = message.from_user.id
+    is_admin = await check_admin(user_id)
+    if is_admin:
+        if not message.text.isdigit():
+            await message.reply_text("لطفا فقط شناسه عددی ارسال کنید.")
+            return
+        bale_id = int(message.text)
+        tg_ids = await get_telegram_ids_by_bale_id(bale_id)
+        for i in tg_ids:
+            await unban_user(i)
+        await message.reply_text(
+             'کاربر از بن خارج شد',
+             reply_markup=build_back_management_keyboard()
         )
