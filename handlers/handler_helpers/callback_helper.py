@@ -3,7 +3,7 @@ from db.model_acync import set_state, check_admin, verify_check
 from config import START_TXT, HELP_TXT
 from utils.keyboards import build_start_keyboard, build_back_keyboard, build_management_keyboard, build_back_management_keyboard
 from db.db_sync import DB_NAME
-from db.model_acync import add_user, is_user_exist
+from db.model_acync import add_user, is_user_exist, get_top_users
 
 
 
@@ -82,7 +82,7 @@ async def start(message:Message, user_id):
     if await is_user_exist(user_id) == False:
         await add_user(user_id)
     is_admin = await check_admin(user_id)
-    await message.reply_text(
+    await message.edit_text(
         START_TXT,
         reply_markup=build_start_keyboard(is_admin)
     )
@@ -91,7 +91,7 @@ async def ban_bale(message:Message, user_id):
     is_admin = await check_admin(user_id)
     if is_admin:
         await set_state(user_id,'enter_bale_ban')
-        await message.reply_text(
+        await message.edit_text(
              "لطفا ID عددی بله کسی را که می خواهید بن کنید را وارد نمایید.",
              reply_markup=build_back_management_keyboard()
         )
@@ -101,7 +101,7 @@ async def unban_bale(message:Message, user_id):
     is_admin = await check_admin(user_id)
     if is_admin:
         await set_state(user_id, 'enter_bale_unban')
-        await message.reply_text(
+        await message.edit_text(
              'لطفا ID عددی بله کسی را که می خواهید آنبن کنید را وارد کنید.',
              reply_markup=build_back_management_keyboard()
         )
@@ -111,7 +111,7 @@ async def ban_telegram(message:Message, user_id):
     is_admin = await check_admin(user_id)
     if is_admin:
         await set_state(user_id,'enter_telegram_ban')
-        await message.reply_text(
+        await message.edit_text(
             'لطفا ID عددی تلگرام کسی را که می خواهید بن کنید وارد کنید:',
             reply_markup=build_back_management_keyboard()
         )
@@ -120,9 +120,21 @@ async def unban_telegram(message:Message, user_id):
     is_admin = await check_admin(user_id)
     if is_admin:
         await set_state(user_id,'enter_telegram_unban')
-        await message.reply_text(
+        await message.edit_text(
             'لطفا ID عددی تلگرام کسی را که می خواهید آنبن کنید وارد کنید:',
             reply_markup=build_back_management_keyboard()
         )
 
+async def show_10_high(message:Message, user_id):
+    is_admin = await check_admin(user_id)
+    if is_admin:
+        message_txt = """|  Telegram ID  |     Bale ID    |  Downloaded Volume  |\n"""
+        list = await get_top_users()
+        for i in list:
+             message_txt += f"|  {i['tg_id']}  |{i['bale_id']}|                   {i['downloaded_volume']}                   |\n"
+        await message.edit_text(
+            message_txt,
+            reply_markup=build_back_management_keyboard()
+        )   
+             
 

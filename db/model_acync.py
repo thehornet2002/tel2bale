@@ -236,3 +236,23 @@ async def unban_user(tg_id: int) -> bool:
         logger.info(f"[MODEL-ASYNC][INFO] کاربر آنبن شد: {tg_id}")
     return success
 
+
+async def get_top_users(limit: int = 10) -> list[dict]:
+    """دریافت ۱۰ کاربر با بیشترین downloaded_volume"""
+    async with get_async_db() as db:
+        cursor = await db.execute("""
+            SELECT telegram_id, bale_id, downloaded_volume
+            FROM users
+            ORDER BY downloaded_volume DESC
+            LIMIT ?
+        """, (limit,))
+        rows = await cursor.fetchall()
+        return [
+            {
+                "tg_id": row["telegram_id"],
+                "bale_id": row["bale_id"],
+                "downloaded_volume": round(float(row["downloaded_volume"]), 2)
+
+            }
+            for row in rows
+        ]

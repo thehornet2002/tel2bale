@@ -1,7 +1,7 @@
 from pyrogram import Client
 from pyrogram.types import CallbackQuery
 from db.model_acync import is_user_exist, check_ban
-from handlers.handler_helpers.callback_helper import back, set_bale_id, management, back_to_management, get_db, send_support_message, start, ban_bale, unban_bale, ban_telegram, unban_telegram
+from handlers.handler_helpers.callback_helper import back, set_bale_id, management, back_to_management, get_db, send_support_message, start, ban_bale, unban_bale, ban_telegram, unban_telegram, show_10_high
 from utils.filters import join_filter_cb
 
 
@@ -86,5 +86,10 @@ async def callback_handler(client: Client, callback: CallbackQuery):
     
     if callback.data == 'unban_telegram_id':
         await unban_telegram(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    if callback.data == 'show_10_high':
+        await show_10_high(callback.message, user_id)
         await callback.answer()
         return
