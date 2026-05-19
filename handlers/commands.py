@@ -5,8 +5,9 @@ from db.model_acync import is_user_exist, add_user, check_admin
 from config import START_TXT, HELP_TXT
 from utils.keyboards import build_start_keyboard
 from handlers.handler_helpers.command_helper import start, help
+from utils.filters import join_filter
 
-@Client.on_message(filters.command('start') & filters.private)
+@Client.on_message(filters.command('start') & filters.private & join_filter)
 async def start_handle(client: Client, message: Message):
     user_id = int(message.from_user.id)
     await start(message, user_id)
@@ -14,7 +15,7 @@ async def start_handle(client: Client, message: Message):
 
 
 
-@Client.on_message(filters.command('help') & filters.private)
+@Client.on_message(filters.command('help') & filters.private & join_filter)
 async def help_handle(client: Client, message: Message):
     user_id = int(message.from_user.id)
     await help(message, user_id)

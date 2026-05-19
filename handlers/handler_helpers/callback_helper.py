@@ -3,7 +3,7 @@ from db.model_acync import set_state, check_admin, verify_check
 from config import START_TXT, HELP_TXT
 from utils.keyboards import build_start_keyboard, build_back_keyboard, build_management_keyboard
 from db.db_sync import DB_NAME
-
+from db.model_acync import add_user, is_user_exist
 
 
 
@@ -77,3 +77,12 @@ async def send_support_message(message:Message, user_id):
             'لطفا پیام خود را وارد کنید:',
             reply_markup=build_back_keyboard()
       )
+
+async def start(message:Message, user_id):
+    if await is_user_exist(user_id) == False:
+        await add_user(user_id)
+    is_admin = await check_admin(user_id)
+    await message.reply_text(
+        START_TXT,
+        reply_markup=build_start_keyboard(is_admin)
+    )
