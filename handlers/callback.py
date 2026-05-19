@@ -1,7 +1,7 @@
 from pyrogram import Client
 from pyrogram.types import CallbackQuery
 from db.model_acync import is_user_exist, check_ban
-from handlers.handler_helpers.callback_helper import back, set_bale_id, management, back_to_management, get_db, send_support_message, start, ban_bale, unban_bale
+from handlers.handler_helpers.callback_helper import back, set_bale_id, management, back_to_management, get_db, send_support_message, start, ban_bale, unban_bale, ban_telegram, unban_telegram
 from utils.filters import join_filter_cb
 
 
@@ -31,48 +31,60 @@ async def callback_handler(client: Client, callback: CallbackQuery):
     #/start
     if callback.data == 'set_bale_id':
         await set_bale_id(callback.message, user_id)
+        await callback.answer()
         return
 
     if callback.data == 'send_support_message':
         await send_support_message(callback.message, user_id)
+        await callback.answer()
         return
 
 
     if callback.data == 'help':
         await help(callback.message, user_id)
+        await callback.answer()
         return
     
     if callback.data == 'management':
         await management(callback.message, user_id)
+        await callback.answer()
         return
     
 
     #back
     if callback.data == 'back':
         await back(callback.message, user_id)
+        await callback.answer()
         return
 
     #back to management
     if callback.data == 'back_to_management':
         await back_to_management(callback.message, user_id)
+        await callback.answer()
         return
 
 
     if callback.data == 'get_db':
         await get_db(callback.message, user_id)
+        await callback.answer()
         return
     
     if callback.data == 'ban_bale_id':
         await ban_bale(callback.message, user_id)
+        await callback.answer()
         return
 
     if callback.data == 'unban_bale_id':
         await unban_bale(callback.message, user_id)
+        await callback.answer()
         return
-
-    # if callback.data == 'ban_bale_id':
-    #     if user_id == ADMIN_ID:
-    #         user['user_step'] = 'enter_ban_bale_id'
-    #         await callback.message.edit_text(
-    #             'لطفا ID عدد کسی را که می خواهید Ban کنید وارد کنید.'
-    #         )
+    
+    if callback.data == 'ban_telegram_id':
+        await ban_telegram(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    if callback.data == 'unban_telegram_id':
+        await unban_telegram(callback.message, user_id)
+        await callback.answer()
+        return

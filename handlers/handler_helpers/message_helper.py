@@ -74,7 +74,6 @@ async def send_support_message(message:Message, user_id:int):
 
 
 async def enter_bale_ban(message:Message, user_id:int):
-    user_id = message.from_user.id
     is_admin = await check_admin(user_id)
     if is_admin :
         if not message.text.isdigit():
@@ -90,8 +89,7 @@ async def enter_bale_ban(message:Message, user_id:int):
         )
 
 
-async def enter_bale_unban(message:Message, userid:int):
-    user_id = message.from_user.id
+async def enter_bale_unban(message:Message, user_id:int):
     is_admin = await check_admin(user_id)
     if is_admin:
         if not message.text.isdigit():
@@ -104,4 +102,29 @@ async def enter_bale_unban(message:Message, userid:int):
         await message.reply_text(
              'کاربر از بن خارج شد',
              reply_markup=build_back_management_keyboard()
+        )
+
+
+async def enter_telegram_ban(message:Message, user_id):
+    is_admin = await check_admin(user_id)
+    if is_admin:
+        if not message.text.isdigit():
+            await message.reply_text("لطفا فقط شناسه عددی ارسال کنید.")
+        tg_id = int(message.text)
+        await ban_user(tg_id)
+        await message.reply_text(
+            'کاربر با خاک یکسان شد.',
+            reply_markup=build_back_management_keyboard()
+        )
+
+async def enter_telegram_unban(message:Message, user_id):
+    is_admin = await check_admin(user_id)
+    if is_admin:
+        if not message.text.isdigit():
+            await message.reply_text('لطفا فقط شناسه عددی ارسال کنید.')
+        tg_id = int(message.text)
+        await unban_user(tg_id)
+        await message.reply_text(
+            'کاربر از بن خارج شد.',
+            reply_markup=build_back_management_keyboard()
         )

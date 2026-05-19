@@ -105,3 +105,24 @@ async def unban_bale(message:Message, user_id):
              'لطفا ID عددی بله کسی را که می خواهید آنبن کنید را وارد کنید.',
              reply_markup=build_back_management_keyboard()
         )
+
+
+async def ban_telegram(message:Message, user_id):
+    is_admin = await check_admin(user_id)
+    if is_admin:
+        await set_state(user_id,'enter_telegram_ban')
+        await message.reply_text(
+            'لطفا ID عددی تلگرام کسی را که می خواهید بن کنید وارد کنید:',
+            reply_markup=build_back_management_keyboard()
+        )
+
+async def unban_telegram(message:Message, user_id):
+    is_admin = await check_admin(user_id)
+    if is_admin:
+        await set_state(user_id,'enter_telegram_unban')
+        await message.reply_text(
+            'لطفا ID عددی تلگرام کسی را که می خواهید آنبن کنید وارد کنید:',
+            reply_markup=build_back_management_keyboard()
+        )
+
+

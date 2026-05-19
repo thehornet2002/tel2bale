@@ -1,7 +1,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from db.model_acync import check_ban, is_user_exist, get_state
-from handlers.handler_helpers.message_helper import enter_bale_id, enter_verify_code, send_support_message, enter_bale_ban, enter_bale_unban
+from handlers.handler_helpers.message_helper import enter_bale_id, enter_verify_code, send_support_message, enter_bale_ban, enter_bale_unban, enter_telegram_ban, enter_telegram_unban
 from utils.filters import join_filter
 
 
@@ -24,4 +24,8 @@ async def handle_input(client: Client, message: Message):
         await enter_bale_ban(message, user_id)
     elif state == 'enter_bale_unban':
         await enter_bale_unban(message, user_id)
+    elif state == 'enter_telegram_ban':
+        await enter_telegram_ban(message, user_id)
+    elif state == 'enter_telegram_unban':
+        await enter_telegram_unban(message, user_id)
     
