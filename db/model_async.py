@@ -22,6 +22,7 @@ async def create_tables() -> None:
                 cooldown            TEXT    DEFAULT '',
                 send_attempts       INTEGER DEFAULT 0,
                 downloaded_volume   FLOAT   DEFAULT 0,
+                limit_download      FLOAT   DEFAULT 0,
                 created_at          TEXT    DEFAULT (datetime('now','localtime')),
                 updated_at          TEXT    DEFAULT (datetime('now','localtime'))
             )
@@ -256,3 +257,119 @@ async def get_top_users(limit: int = 10) -> list[dict]:
             }
             for row in rows
         ]
+
+async def get_all_telegram_ids() -> list[int]:
+    """دریافت لیست تمام telegram_id های موجود در دیتابیس"""
+    async with get_async_db() as db:
+        cursor = await db.execute("SELECT telegram_id FROM users")
+        rows = await cursor.fetchall()
+        return [row["telegram_id"] for row in rows]
+    
+
+
+async def set_admin(tg_id: int) -> bool:
+    """ادمین کردن کاربر با telegram_id — True اگر موفق، False اگر کاربر پیدا نشد"""
+    async with get_async_db() as db:
+        cursor = await db.execute("""
+            UPDATE users
+            SET is_admin = 1, updated_at = datetime('now','localtime')
+            WHERE telegram_id = ?
+        """, (tg_id,))
+        success = cursor.rowcount > 0
+    if success:
+        logger.info(f"[MODEL-ASYNC][INFO] کاربر {tg_id} ادمین شد.")
+    return success
+
+async def unset_admin(tg_id: int) -> bool:
+    """حذف ادمینی کاربر با telegram_id — True اگر موفق، False اگر کاربر پیدا نشد"""
+    async with get_async_db() as db:
+        cursor = await db.execute("""
+            UPDATE users
+            SET is_admin = 0, updated_at = datetime('now','localtime')
+            WHERE telegram_id = ?
+        """, (tg_id,))
+        success = cursor.rowcount > 0
+    if success:
+        logger.info(f"[MODEL-ASYNC][INFO] ادمینی کاربر {tg_id} حذف شد.")
+    return success
+
+async def set_limit_download_all(limit: float) -> None:
+    """تنظیم limit_download برای تمام کاربران"""
+    async with get_async_db() as db:
+        await db.execute("""
+            UPDATE users
+            SET limit_download = ?, updated_at = datetime('now','localtime')
+        """, (limit,))
+    logger.info(f"[MODEL-ASYNC][INFO] limit_download همه کاربران به {limit} تنظیم شد.")
+
+
+async def set_limit_download(tg_id: int, limit: float) -> bool:
+    """تنظیم limit_download برای یک کاربر با telegram_id"""
+    async with get_async_db() as db:
+        cursor = await db.execute("""
+            UPDATE users
+            SET limit_download = ?, updated_at = datetime('now','localtime')
+            WHERE telegram_id = ?
+        """, (limit, tg_id))
+        success = cursor.rowcount > 0
+    if success:
+        logger.info(f"[MODEL-ASYNC][INFO] limit_download کاربر {tg_id} به {limit} تنظیم شد.")
+    return success
+
+async def get_unread_support_message() -> dict | None:
+    """دریافت یک پیام پشتیبانی خوانده‌نشده و علامت‌گذاری آن"""
+    async with get_async_db() as db:
+        cursor = await db.execute("""
+            SELECT id, telegram_id, message_text
+            FROM support_messages
+            WHERE is_read = 0
+            ORDER BY sent_at ASC
+            LIMIT 1
+        """)
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        await db.execute(
+            "UPDATE support_messages SET is_read = 1 WHERE id = ?", (row["id"],)
+        )
+        return {"tg_id": row["telegram_id"], "message_text": row["message_text"]}
+
+
+async def get_bale_id(tg_id: int) -> int | None:
+    """دریافت bale_id کاربر با telegram_id"""
+    async with get_async_db() as db:
+        cursor = await db.execute(
+            "SELECT bale_id FROM users WHERE telegram_id = ?", (tg_id,)
+        )
+        row = await cursor.fetchone()
+        return row["bale_id"] if row else None
+    
+
+async def get_downloaded_volume(tg_id: int) -> float:
+    """دریافت حجم دانلود شده کاربر"""
+    async with get_async_db() as db:
+        cursor = await db.execute(
+            "SELECT downloaded_volume FROM users WHERE telegram_id = ?", (tg_id,)
+        )
+        row = await cursor.fetchone()
+        return row["downloaded_volume"] if row else 0.0
+
+
+async def get_limit_download(tg_id: int) -> float:
+    """دریافت حد مجاز دانلود کاربر"""
+    async with get_async_db() as db:
+        cursor = await db.execute(
+            "SELECT limit_download FROM users WHERE telegram_id = ?", (tg_id,)
+        )
+        row = await cursor.fetchone()
+        return row["limit_download"] if row else 0.0
+
+
+async def set_downloaded_volume(tg_id: int, volume: float) -> None:
+    """تنظیم حجم دانلود شده کاربر"""
+    async with get_async_db() as db:
+        await db.execute("""
+            UPDATE users
+            SET downloaded_volume = ?, updated_at = datetime('now','localtime')
+            WHERE telegram_id = ?
+        """, (volume, tg_id))

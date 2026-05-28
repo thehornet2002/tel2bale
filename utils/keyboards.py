@@ -54,14 +54,15 @@ def build_management_keyboard():
             InlineKeyboardButton(text='آنبن با ID تلگرام',callback_data='unban_telegram_id'),
         ],
         [
-            InlineKeyboardButton(text='نمایش 10 کاربر پر مصرف', callback_data='show_10_high')
+            InlineKeyboardButton(text='نمایش 10 کاربر پر مصرف', callback_data='show_10_high'),
+            InlineKeyboardButton(text='تنظیم عکس پروفایل ربات', callback_data='set_profile_photo')
         ],
         [
             InlineKeyboardButton(text='مشاهده پیام های بخش پشتیبانی', callback_data='show_support_messages')
         ],
         [
-            InlineKeyboardButton(text='تنظیم محدودیت روزانه',callback_data='set_daily_limit'),
-            InlineKeyboardButton(text='تنظبم محدودیت کلی',callback_data='set_limit'),
+            InlineKeyboardButton(text='تنظیم محدودیت برای همه',callback_data='set_limit_all'),
+            InlineKeyboardButton(text='تنظیم محدودیت برای یک نفر',callback_data='set_limit'),
         ],
         [
             InlineKeyboardButton(text='ایجاد Join اجباری',callback_data='set_join_ads'),
@@ -90,4 +91,13 @@ def build_ads_channels(channels: list):
             [InlineKeyboardButton(text=f"کانال {i+1}", url=f"https://t.me/{channels[i]}")]
         )
     rows.append([InlineKeyboardButton(text="عضو شدم", callback_data='start')])
+    return InlineKeyboardMarkup(rows)
+
+def support_keyboard():
+    rows = [
+        [
+            InlineKeyboardButton(text='دریافت پیامی دیگر', callback_data='show_support_messages'),
+            InlineKeyboardButton(text='بازگشت', callback_data='back_to_management')
+        ]
+    ]
     return InlineKeyboardMarkup(rows)

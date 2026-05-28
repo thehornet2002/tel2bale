@@ -3,7 +3,7 @@ import os
 from logging.handlers import TimedRotatingFileHandler
 
 LOG_DIR = "logs"
-LOG_FILE = os.path.join(LOG_DIR, "../bot.log")
+LOG_FILE = os.path.join(LOG_DIR, "bot.log")
 
 
 def setup_logger() -> None:

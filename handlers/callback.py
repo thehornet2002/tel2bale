@@ -1,7 +1,7 @@
 from pyrogram import Client
 from pyrogram.types import CallbackQuery
-from db.model_acync import is_user_exist, check_ban
-from handlers.handler_helpers.callback_helper import back, set_bale_id, management, back_to_management, get_db, send_support_message, start, ban_bale, unban_bale, ban_telegram, unban_telegram, show_10_high
+from db.model_async import is_user_exist, check_ban
+from handlers.handler_helpers.callback_helper import back, set_bale_id, management, back_to_management, get_db, send_support_message, start, ban_bale, unban_bale, ban_telegram, unban_telegram, show_10_high, set_join_ads, delete_join_ads, send_ads_message, send_message, add_admin, delete_admin, set_profile_photo, set_limit_all, set_limit, show_support_messages, help
 from utils.filters import join_filter_cb
 
 
@@ -91,5 +91,56 @@ async def callback_handler(client: Client, callback: CallbackQuery):
     
     if callback.data == 'show_10_high':
         await show_10_high(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    if callback.data == 'set_join_ads':
+        await set_join_ads(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    if callback.data == 'delete_join_ads':
+        await delete_join_ads(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    if callback.data == 'send_ads':
+        await send_ads_message(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    if callback.data == 'send_message':
+        await send_message(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    if callback.data == 'add_admin':
+        await add_admin(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    if callback.data == 'delete_admin':
+        await delete_admin(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    if callback.data == 'set_profile_photo':
+        await set_profile_photo(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    
+    if callback.data == 'set_limit_all':
+        await set_limit_all(callback.message, user_id)
+        await callback.answer()
+        return
+    
+    if callback.data == 'set_limit':
+        await set_limit(callback.message, user_id)
+        await callback.answer()
+        return
+
+    if callback.data == 'show_support_messages':
+        await show_support_messages(callback.message, user_id)
         await callback.answer()
         return

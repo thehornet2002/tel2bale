@@ -29,6 +29,7 @@ def create_tables() -> None:
                 cooldown            TEXT    DEFAULT '',
                 send_attempts       INTEGER DEFAULT 0,
                 downloaded_volume   FLOAT   DEFAULT 0,
+                limit_download      FLOAT   DEFAULT 0,
                 created_at          TEXT    DEFAULT (datetime('now','localtime')),
                 updated_at          TEXT    DEFAULT (datetime('now','localtime'))
             )

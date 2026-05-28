@@ -30,11 +30,7 @@ async def is_member_of_channel(client: Client, message: Message) -> bool:
         )
         return False
     except Exception:
-        await message.reply_text(
-            "لطفا ابتدا در کانال‌های زیر عضو شوید",
-            reply_markup=build_ads_channels(ADS_CHANNELS)
-        )
-        return False
+        return True
 
 
 async def _join_filter_func(_, client: Client, message: Message) -> bool:
@@ -63,8 +59,7 @@ async def is_member_of_channel_cb(client: Client, callback: CallbackQuery) -> bo
         await callback.answer("لطفا ابتدا در کانال‌های زیر عضو شوید", show_alert=True)
         return False
     except Exception:
-        await callback.answer("لطفا ابتدا در کانال‌های زیر عضو شوید", show_alert=True)
-        return False
+        return True
 
 
 async def _join_filter_cb_func(_, client: Client, callback: CallbackQuery) -> bool:
