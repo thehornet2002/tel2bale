@@ -1,7 +1,7 @@
 from pyrogram.types import Message
 from db.model_async import get_send_attempts, get_cooldown, set_send_attempts, set_cooldown, set_verify_code, set_state, get_verify_code, set_verified, check_admin,save_support_message, get_telegram_ids_by_bale_id, ban_user, set_bale_id, unban_user, get_all_telegram_ids, get_state, set_admin, unset_admin, set_limit_download_all, set_limit_download, verify_check, get_bale_id, get_downloaded_volume,get_limit_download, set_downloaded_volume
 from utils.code_generator import generate_random_code
-from services.bale_service import send_verify_code, send_message, send_photo, send_video, send_audio, send_voice, send_document, send_animation, send_location, send_contact, send_media_group
+from services.bale_service import send_verify_code, send_message, send_photo, send_video, send_audio, send_voice, send_document, send_animation, send_location, send_contact
 from utils.keyboards import build_start_keyboard, build_back_keyboard, build_back_management_keyboard
 from config import add_ads_channel, remove_ads_channel, add_admin, remove_admin, MAX_FILE_SIZE, IN_MEMORY
 from services.quota_service import check_and_update_quota
