@@ -6,9 +6,6 @@ from utils.logger import setup_logger
 plugins = dict(root="handlers")
 
 
-
-print(TELPROXY)
-
 telapp = Client(
     "bot",
     api_id=TEL_API_ID,
