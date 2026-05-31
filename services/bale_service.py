@@ -1,271 +1,289 @@
 import aiohttp
-from config import BALE_BOT_TOKEN
-import json
-from collections import defaultdict
 
 
-media_groups = defaultdict(list)
+class BaleService:
+    def __init__(self):
+        self.session = None
 
+    async def start(self):
+        if not self.session or self.session.closed:
+            timeout = aiohttp.ClientTimeout(total=100)
+            self.session = aiohttp.ClientSession(timeout=timeout)
 
-async def send_verify_code(chat_id: int, code: str):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": f"کد تایید شما: {code}"}
-    headers = {"Content-Type": "application/json"}
-    timeout = aiohttp.ClientTimeout(total=10)
+    async def close(self):
+        if self.session and not self.session.closed:
+            await self.session.close()
 
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(url, json=payload, headers=headers) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            data = await resp.json()
-            if not data.get("ok"):
-                raise Exception(f"Bale API Error {data.get('error_code')}: {data.get('description')}")
-            return data["result"]
+    async def _request(
+        self,
+        bale_bot_token: str,
+        endpoint: str,
+        method: str = "POST",
+        **kwargs
+    ):
+        if not self.session or self.session.closed:
+            await self.start()
 
+        url = f"https://tapi.bale.ai/bot{bale_bot_token}/{endpoint}"
 
-async def send_message(chat_id:int, message:str):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": message}
-    headers = {"Content-Type": "application/json"}
-    timeout = aiohttp.ClientTimeout(total=10)
+        try:
+            async with self.session.request(method, url, **kwargs) as resp:
+                text = await resp.text()
 
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(url, json=payload, headers=headers) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            data = await resp.json()
-            if not data.get("ok"):
-                raise Exception(f"Bale API Error {data.get('error_code')}: {data.get('description')}")
-            return data["result"]
+                if resp.status != 200:
+                    raise Exception(
+                        f"خطای ارتباط با بله (HTTP {resp.status})\n{text}"
+                    )
 
+                try:
+                    data = await resp.json()
+                except Exception:
+                    raise Exception(
+                        f"پاسخ نامعتبر از سرور بله:\n{text}"
+                    )
 
+                if not data.get("ok", False):
+                    raise Exception(
+                        data.get(
+                            "description",
+                            "خطای ناشناخته از سمت بله"
+                        )
+                    )
 
-async def send_photo(chat_id: int, photo: bytes, caption: str = None):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendPhoto"
-    timeout = aiohttp.ClientTimeout(total=30)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        data = aiohttp.FormData()
-        data.add_field("chat_id", str(chat_id))
-        data.add_field("photo", photo, filename="photo.jpg", content_type="image/jpeg")
-        if caption:
-            data.add_field("caption", caption)
-        async with session.post(url, data=data) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            result = await resp.json()
-            if not result.get("ok"):
-                raise Exception(f"Bale API Error: {result.get('description')}")
-            return result["result"]
+                return data.get("result")
 
-
-async def send_video(chat_id: int, video: bytes, caption: str = None):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendVideo"
-    timeout = aiohttp.ClientTimeout(total=60)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        data = aiohttp.FormData()
-        data.add_field("chat_id", str(chat_id))
-        data.add_field("video", video, filename="video.mp4", content_type="video/mp4")
-        if caption:
-            data.add_field("caption", caption)
-        async with session.post(url, data=data) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            result = await resp.json()
-            if not result.get("ok"):
-                raise Exception(f"Bale API Error: {result.get('description')}")
-            return result["result"]
-
-async def send_audio(chat_id: int, audio: bytes, caption: str = None):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendAudio"
-    timeout = aiohttp.ClientTimeout(total=60)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        data = aiohttp.FormData()
-        data.add_field("chat_id", str(chat_id))
-        data.add_field("audio", audio, filename="audio.mp3", content_type="audio/mpeg")
-        if caption:
-            data.add_field("caption", caption)
-        async with session.post(url, data=data) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            result = await resp.json()
-            if not result.get("ok"):
-                raise Exception(f"Bale API Error: {result.get('description')}")
-            return result["result"]
-
-
-async def send_voice(chat_id: int, voice: bytes, caption: str = None):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendVoice"
-    timeout = aiohttp.ClientTimeout(total=30)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        data = aiohttp.FormData()
-        data.add_field("chat_id", str(chat_id))
-        data.add_field("voice", voice, filename="voice.ogg", content_type="audio/ogg")
-        if caption:
-            data.add_field("caption", caption)
-        async with session.post(url, data=data) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            result = await resp.json()
-            if not result.get("ok"):
-                raise Exception(f"Bale API Error: {result.get('description')}")
-            return result["result"]
-
-
-async def send_document(chat_id: int, document: bytes, filename: str, caption: str = None):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendDocument"
-    timeout = aiohttp.ClientTimeout(total=60)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        data = aiohttp.FormData()
-        data.add_field("chat_id", str(chat_id))
-        data.add_field("document", document, filename=filename, content_type="application/octet-stream")
-        if caption:
-            data.add_field("caption", caption)
-        async with session.post(url, data=data) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            result = await resp.json()
-            if not result.get("ok"):
-                raise Exception(f"Bale API Error: {result.get('description')}")
-            return result["result"]
-
-async def send_animation(chat_id: int, animation: bytes, caption: str = None):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendAnimation"
-    timeout = aiohttp.ClientTimeout(total=60)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        data = aiohttp.FormData()
-        data.add_field("chat_id", str(chat_id))
-        data.add_field("animation", animation, filename="animation.gif", content_type="video/mp4")
-        if caption:
-            data.add_field("caption", caption)
-        async with session.post(url, data=data) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            result = await resp.json()
-            if not result.get("ok"):
-                raise Exception(f"Bale API Error: {result.get('description')}")
-            return result["result"]
-
-async def send_video_note(chat_id: int, video_note: bytes):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendVideoNote"
-    timeout = aiohttp.ClientTimeout(total=60)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        data = aiohttp.FormData()
-        data.add_field("chat_id", str(chat_id))
-        data.add_field("video_note", video_note, filename="video_note.mp4", content_type="video/mp4")
-        async with session.post(url, data=data) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            result = await resp.json()
-            if not result.get("ok"):
-                raise Exception(f"Bale API Error: {result.get('description')}")
-            return result["result"]
-
-
-async def send_location(chat_id: int, latitude: float, longitude: float):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendLocation"
-    payload = {
-        "chat_id": chat_id,
-        "latitude": latitude,
-        "longitude": longitude
-    }
-    headers = {"Content-Type": "application/json"}
-    timeout = aiohttp.ClientTimeout(total=10)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(url, json=payload, headers=headers) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            result = await resp.json()
-            if not result.get("ok"):
-                raise Exception(f"Bale API Error: {result.get('description')}")
-            return result["result"]
-
-async def send_contact(chat_id: int, phone_number: str, first_name: str, last_name: str = None):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendContact"
-    payload = {
-        "chat_id": chat_id,
-        "phone_number": phone_number,
-        "first_name": first_name + ' ' + last_name,
-    }
-    headers = {"Content-Type": "application/json"}
-    timeout = aiohttp.ClientTimeout(total=10)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(url, json=payload, headers=headers) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
-            result = await resp.json()
-            if not result.get("ok"):
-                raise Exception(f"Bale API Error: {result.get('description')}")
-            return result["result"]
-
-
-async def send_media_group(chat_id: int, media_list: list[dict]):
-    url = f"https://tapi.bale.ai/bot{BALE_BOT_TOKEN}/sendMediaGroup"
-
-    timeout = aiohttp.ClientTimeout(total=60)
-
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-
-        data = aiohttp.FormData()
-        data.add_field("chat_id", str(chat_id))
-
-        media_json = []
-
-        for i, item in enumerate(media_list):
-
-            key = f"file_{i}"
-
-            if item["type"] == "photo":
-                filename = f"{key}.jpg"
-                content_type = "image/jpeg"
-
-            elif item["type"] == "video":
-                filename = f"{key}.mp4"
-                content_type = "video/mp4"
-
-            else:
-                continue
-
-            data.add_field(
-                key,
-                item["bytes"],
-                filename=filename,
-                content_type=content_type
+        except aiohttp.ClientError as e:
+            raise Exception(
+                f"خطا در اتصال به سرورهای بله:\n{e}"
             )
 
-            media_json.append({
-                "type": item["type"],
-                "media": f"attach://{key}",
-                "caption": item.get("caption", "")
-            })
+    async def send_message(
+        self,
+        bale_bot_token: str,
+        chat_id: int,
+        text: str
+    ):
+        payload = {
+            "chat_id": chat_id,
+            "text": text
+        }
 
-        data.add_field(
-            "media",
-            json.dumps(media_json, ensure_ascii=False)
+        return await self._request(
+            bale_bot_token,
+            "sendMessage",
+            json=payload
         )
 
-        async with session.post(url, data=data) as resp:
+    async def send_photo(
+        self,
+        bale_bot_token: str,
+        chat_id: int,
+        photo,
+        caption: str | None = None
+    ):
+        data = aiohttp.FormData()
+        data.add_field("chat_id", str(chat_id))
+        data.add_field(
+            "photo",
+            photo,
+            filename="photo.jpg",
+            content_type="image/jpeg"
+        )
 
-            text = await resp.text()
+        if caption:
+            data.add_field("caption", caption)
 
-            if resp.status != 200:
-                raise Exception(f"HTTP {resp.status}: {text}")
+        return await self._request(
+            bale_bot_token,
+            "sendPhoto",
+            data=data
+        )
 
-            result = await resp.json()
+    async def send_video(
+        self,
+        bale_bot_token: str,
+        chat_id: int,
+        video,
+        caption: str | None = None
+    ):
+        data = aiohttp.FormData()
+        data.add_field("chat_id", str(chat_id))
+        data.add_field(
+            "video",
+            video,
+            filename="video.mp4",
+            content_type="video/mp4"
+        )
 
-            if not result.get("ok"):
-                raise Exception(
-                    f"Bale API Error: {result.get('description')}"
-                )
+        if caption:
+            data.add_field("caption", caption)
 
-            return result["result"]
+        return await self._request(
+            bale_bot_token,
+            "sendVideo",
+            data=data
+        )
+
+    async def send_audio(
+        self,
+        bale_bot_token: str,
+        chat_id: int,
+        audio,
+        caption: str | None = None
+    ):
+        data = aiohttp.FormData()
+        data.add_field("chat_id", str(chat_id))
+        data.add_field(
+            "audio",
+            audio,
+            filename="audio.mp3",
+            content_type="audio/mpeg"
+        )
+
+        if caption:
+            data.add_field("caption", caption)
+
+        return await self._request(
+            bale_bot_token,
+            "sendAudio",
+            data=data
+        )
+
+    async def send_voice(
+        self,
+        bale_bot_token: str,
+        chat_id: int,
+        voice,
+        caption: str | None = None
+    ):
+        data = aiohttp.FormData()
+        data.add_field("chat_id", str(chat_id))
+        data.add_field(
+            "voice",
+            voice,
+            filename="voice.ogg",
+            content_type="audio/ogg"
+        )
+
+        if caption:
+            data.add_field("caption", caption)
+
+        return await self._request(
+            bale_bot_token,
+            "sendVoice",
+            data=data
+        )
+
+    async def send_document(
+        self,
+        bale_bot_token: str,
+        chat_id: int,
+        document,
+        filename: str,
+        caption: str | None = None
+    ):
+        data = aiohttp.FormData()
+        data.add_field("chat_id", str(chat_id))
+        data.add_field(
+            "document",
+            document,
+            filename=filename,
+            content_type="application/octet-stream"
+        )
+
+        if caption:
+            data.add_field("caption", caption)
+
+        return await self._request(
+            bale_bot_token,
+            "sendDocument",
+            data=data
+        )
+
+    async def send_animation(
+        self,
+        bale_bot_token: str,
+        chat_id: int,
+        animation,
+        caption: str | None = None
+    ):
+        data = aiohttp.FormData()
+        data.add_field("chat_id", str(chat_id))
+        data.add_field(
+            "animation",
+            animation,
+            filename="animation.gif",
+            content_type="video/mp4"
+        )
+
+        if caption:
+            data.add_field("caption", caption)
+
+        return await self._request(
+            bale_bot_token,
+            "sendAnimation",
+            data=data
+        )
+
+    async def send_video_note(
+        self,
+        bale_bot_token: str,
+        chat_id: int,
+        video_note
+    ):
+        data = aiohttp.FormData()
+        data.add_field("chat_id", str(chat_id))
+        data.add_field(
+            "video_note",
+            video_note,
+            filename="video_note.mp4",
+            content_type="video/mp4"
+        )
+
+        return await self._request(
+            bale_bot_token,
+            "sendVideoNote",
+            data=data
+        )
+
+    async def send_location(
+        self,
+        bale_bot_token: str,
+        chat_id: int,
+        latitude: float,
+        longitude: float
+    ):
+        payload = {
+            "chat_id": chat_id,
+            "latitude": latitude,
+            "longitude": longitude
+        }
+
+        return await self._request(
+            bale_bot_token,
+            "sendLocation",
+            json=payload
+        )
+
+    async def send_contact(
+        self,
+        bale_bot_token: str,
+        chat_id: int,
+        phone_number: str,
+        first_name: str,
+        last_name: str = ""
+    ):
+        payload = {
+            "chat_id": chat_id,
+            "phone_number": phone_number,
+            "first_name": f"{first_name} {last_name}".strip()
+        }
+
+        return await self._request(
+            bale_bot_token,
+            "sendContact",
+            json=payload
+        )
+
+
+bale_bot = BaleService()

@@ -25,8 +25,6 @@ TEL_API_ID = int(os.getenv("TEL_API_ID"))
 TEL_API_HASH = os.getenv("TEL_API_HASH")
 TEL_BOT_TOKEN = os.getenv("TEL_BOT_TOKEN")
 
-BALE_BOT_TOKEN = os.getenv("BALE_BOT_TOKEN")
-
 ADMIN_IDS = _parse_list(os.getenv("TEL_ADMIN_IDS"), int)
 
 MAX_FILE_SIZE = int(os.getenv("TEL_MAX_FILE_SIZE", 20)) * 1024 * 1024
@@ -56,13 +54,12 @@ TELPROXY = (
 
 
 async def _save_env():
-    """ذخیره مقادیر ��علی در فایل .env"""
+    """ذخیره مقادیر فعلی در فایل .env"""
     async with _env_lock:
         env_data = {
             "TEL_API_ID": str(TEL_API_ID),
             "TEL_API_HASH": TEL_API_HASH,
             "TEL_BOT_TOKEN": TEL_BOT_TOKEN,
-            "BALE_BOT_TOKEN": BALE_BOT_TOKEN,
 
             "TEL_ADMIN_IDS": ",".join(map(str, ADMIN_IDS)),
             "TEL_START_TXT": START_TXT,
