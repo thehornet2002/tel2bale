@@ -456,7 +456,7 @@ psql -U telegram -d tel2bale -c "SELECT COUNT(*) FROM users;"
 
 - **Issues:** [بازکردن Issue](https://github.com/thehornet2002/tel2bale/issues)
 - **Discussions:** [پرسش و پاسخ](https://github.com/thehornet2002/tel2bale/discussions)
-- **تلگرام:** [@BaleBot](https://t.me/balebot)
+- **تلگرام:** [@tel2bale](https://t.me/tel2bale)
 
 ### 👤 نویسنده
 
