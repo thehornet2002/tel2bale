@@ -1,4 +1,4 @@
-pyrogram==2.0.106
+kurigram==2.2.23
 TgCrypto==1.2.5
 aiosqlite==0.22.1
 python-dotenv==1.2.2
