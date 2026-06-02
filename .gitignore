@@ -17,4 +17,5 @@ __pycache__/bale.cpython-312.pyc
 .env
 .gitignore
 logs
-services/arvan_service.py
+__pycache__
+__init__.py

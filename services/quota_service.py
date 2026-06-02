@@ -1,24 +1,17 @@
-from db.model_async import get_downloaded_volume, get_limit_download, set_downloaded_volume
+from db.model_async import reserve_download_quota, release_download_quota
 
 
-
-
-async def check_and_update_quota(user_id: int, file_size_bytes: int) -> bool:
+async def check_and_update_quota(user_id: int, file_size_bytes: int | None) -> bool:
     """
-    بررسی می‌کند که آیا کاربر حجم مجاز برای ارسال این فایل را دارد یا خیر.
-    اگر حجم داشت، دیتابیس را آپدیت کرده و True برمی‌گرداند.
+    بررسی اتمیک سهمیه کاربر و reserve کردن مصرف.
+
+    این تابع دیگر SELECT و UPDATE جداگانه انجام نمی‌دهد؛ بنابراین اگر کاربر
+    چند فایل را هم‌زمان بفرستد، مصرف دانلود به‌درستی و بدون race condition
+    ثبت می‌شود.
     """
-    if file_size_bytes == 0 or file_size_bytes is None:
-        return True
+    return await reserve_download_quota(user_id, file_size_bytes)
 
-    file_size_gb = file_size_bytes / (1024 ** 3)
-    downloaded_volume = await get_downloaded_volume(user_id)
-    limit_download = await get_limit_download(user_id)
 
-    # اگر کاربر محدودیت دارد (صفر نیست) و از حجم مجاز عبور کرده است
-    if limit_download != 0 and (downloaded_volume + file_size_gb) > limit_download:
-        return False
-
-    # آپدیت حجم مصرفی در دیتابیس
-    await set_downloaded_volume(user_id, downloaded_volume + file_size_gb)
-    return True
+async def rollback_quota(user_id: int, file_size_bytes: int | None) -> bool:
+    """اگر انتقال بعد از reserve شدن سهمیه شکست خورد، مصرف را برمی‌گرداند."""
+    return await release_download_quota(user_id, file_size_bytes)

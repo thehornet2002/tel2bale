@@ -7,7 +7,7 @@ def build_start_keyboard(is_admin):
         [InlineKeyboardButton(text="تنظیم ID عددی بله", callback_data='set_bale_id', style=ButtonStyle('primary'))],
         [InlineKeyboardButton(text='تنظیم Bot Token بله', callback_data='set_bale_bot_token', style=ButtonStyle('primary'))],
         [InlineKeyboardButton(text='تنظیم Access Key و Secret Key فضای ابری آروان', callback_data="set_arvan_storage", style=ButtonStyle('primary'))],
-        [InlineKeyboardButton(text='حمایت مالی', url='https://google.com', style=ButtonStyle('success'))],
+        [InlineKeyboardButton(text='حمایت مالی', url='https://daramet.com/Hornet2002', style=ButtonStyle('success'))],
         [InlineKeyboardButton(text='راهنمای استفاده از ربات', callback_data='help', style=ButtonStyle('success'))],
         [InlineKeyboardButton(text="ارسال پیام به پشتیبانی", callback_data='send_support_message', style=ButtonStyle('success'))]
     ]
@@ -80,16 +80,47 @@ def build_management_keyboard():
     return InlineKeyboardMarkup(rows)
 
 
-
 def build_ads_channels(channels: list):
     rows = []
-    for i in range(len(channels)):
-        rows.append(
-            [InlineKeyboardButton(text=f"کانال {i+1}", url=f"https://t.me/{channels[i]}")]
+
+    for i, channel in enumerate(channels):
+        channel_text = str(channel).strip()
+
+        if channel_text.startswith("http://") or channel_text.startswith("https://"):
+            url = channel_text
+        elif channel_text.startswith("@"):
+            url = f"https://t.me/{channel_text[1:]}"
+        elif not channel_text.lstrip("-").isdigit():
+            url = f"https://t.me/{channel_text}"
+        else:
+            url = None
+
+        if url:
+            rows.append([
+                InlineKeyboardButton(
+                    text=f"کانال {i + 1}",
+                    url=url
+                )
+            ])
+        else:
+            rows.append([
+                InlineKeyboardButton(
+                    text=f"کانال {i + 1}: {channel_text}",
+                    callback_data="noop_ads_channel"
+                )
+            ])
+
+    rows.append([
+        InlineKeyboardButton(
+            text="عضو شدم",
+            callback_data='start',
+            style=ButtonStyle('success')
         )
-    rows.append([InlineKeyboardButton(text="عضو شدم", callback_data='start', style=ButtonStyle('success'))])
+    ])
+
     return InlineKeyboardMarkup(rows)
 
+    
 def support_keyboard():
     rows = [
         [

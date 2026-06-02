@@ -22,7 +22,7 @@ async def is_member_of_channel(client: Client, message: Message) -> bool:
         for channel in ADS_CHANNELS:
             try:
                 member = await client.get_chat_member(
-                    chat_id=channel,
+                    chat_id=normalize_ads_chat_id(channel),
                     user_id=message.from_user.id
                 )
                 if member.status.value not in ("creator", "administrator", "member", 'owner'):
@@ -61,7 +61,7 @@ async def is_member_of_channel_cb(client: Client, callback: CallbackQuery) -> bo
         for channel in ADS_CHANNELS:
             try:
                 member = await client.get_chat_member(
-                    chat_id=channel,
+                    chat_id=normalize_ads_chat_id(channel),
                     user_id=callback.from_user.id
                 )
                 if member.status.value not in ("creator", "administrator", "member", "owner"):
@@ -79,5 +79,10 @@ async def is_member_of_channel_cb(client: Client, callback: CallbackQuery) -> bo
 async def _join_filter_cb_func(_, client: Client, callback: CallbackQuery) -> bool:
     return await is_member_of_channel_cb(client, callback)
 
+
+def normalize_ads_chat_id(channel):
+    if isinstance(channel, str) and channel.strip().lstrip("-").isdigit():
+        return int(channel.strip())
+    return channel
 
 join_filter_cb = filters.create(_join_filter_cb_func)

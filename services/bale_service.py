@@ -284,6 +284,19 @@ class BaleService:
             "sendContact",
             json=payload
         )
+    async def verify_token(self, bale_bot_token: str) -> bool:
+        """
+        بررسی صحت bot_token با فراخوانی getMe.
+
+        Returns:
+            True  → token معتبر است
+            False → token نامعتبر یا خطا در اتصال
+        """
+        try:
+            await self._request(bale_bot_token, "getMe", method="GET")
+            return True
+        except Exception:
+            return False
 
 
 bale_bot = BaleService()

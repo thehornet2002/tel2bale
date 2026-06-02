@@ -432,9 +432,11 @@ psql -U telegram -d tel2bale -c "SELECT COUNT(*) FROM users;"
 
 ### برنامه‌های آینده
 
-- [ ] پشتیبانی از کانال‌های تلگرام
-- [ ] استفاده از Arvan Storage برای حجم های بالا
-- [ ] جلوگیری از اسپم
+- [ ] اضافه کردن لینک دونیت در .env
+- [ ] اضافه کردن S3 Endpoint برای استفاده از دیگر سرویس های ذخیره سازی ابری
+- [ ] اضافه کردن تغییر لینک دونیت در پنل مدیریت
+- [ ] اضاقه کردن محدودیت در تعداد user و تعداد user فعال
+- [ ] حذف message_support از دیتابیس و اضافه کردن گروه پشتیبانی و محدودیت ارسال پیام به پشتیبانی
 
 ---
 
@@ -456,7 +458,7 @@ psql -U telegram -d tel2bale -c "SELECT COUNT(*) FROM users;"
 
 - **Issues:** [بازکردن Issue](https://github.com/thehornet2002/tel2bale/issues)
 - **Discussions:** [پرسش و پاسخ](https://github.com/thehornet2002/tel2bale/discussions)
-- **تلگرام:** [@BaleBot](https://t.me/balebot)
+- **تلگرام:** [@tel2bale](https://t.me/tel2bale)
 
 ### 👤 نویسنده
 

@@ -20,21 +20,29 @@ def _parse_list(value: str, cast_func=str):
     ]
 
 
-# Telegram Config
-TEL_API_ID = int(os.getenv("TEL_API_ID"))
-TEL_API_HASH = os.getenv("TEL_API_HASH")
-TEL_BOT_TOKEN = os.getenv("TEL_BOT_TOKEN")
+def _safe_int(value: str, default: int = 0) -> int:
+    """جلوگیری از Crash در صورت None یا خالی بودن مقادیر ورودی"""
+    try:
+        return int(value) if value else default
+    except (TypeError, ValueError):
+        return default
 
-ADMIN_IDS = _parse_list(os.getenv("TEL_ADMIN_IDS"), int)
 
-MAX_FILE_SIZE = int(os.getenv("TEL_MAX_FILE_SIZE", 20)) * 1024 * 1024
+# Telegram Config (حل مشکل Crash روی Import با مقادیر پیش‌فرض امن)
+TEL_API_ID = _safe_int(os.getenv("TEL_API_ID"))
+TEL_API_HASH = os.getenv("TEL_API_HASH", "")
+TEL_BOT_TOKEN = os.getenv("TEL_BOT_TOKEN", "")
+
+ADMIN_IDS = _parse_list(os.getenv("TEL_ADMIN_IDS", ""), int)
+
+MAX_FILE_SIZE = _safe_int(os.getenv("TEL_MAX_FILE_SIZE"), 20) * 1024 * 1024
 
 START_TXT = os.getenv("TEL_START_TXT", "")
 HELP_TXT = os.getenv("TEL_HELP_TXT", "")
 
 IN_MEMORY = os.getenv("TEL_IN_MEMORY", "False").lower() == "true"
 
-ADS_CHANNELS = _parse_list(os.getenv("TEL_ADS_CHANNELS"))
+ADS_CHANNELS = _parse_list(os.getenv("TEL_ADS_CHANNELS", ""))
 
 
 # Telegram Proxy Config
@@ -46,83 +54,129 @@ TELPROXY = (
     dict(
         scheme=_tel_proxy_scheme,
         hostname=_tel_proxy_host,
-        port=int(_tel_proxy_port)
+        port=_safe_int(_tel_proxy_port)
     )
     if _tel_proxy_scheme and _tel_proxy_host and _tel_proxy_port
     else None
 )
 
 
-async def _save_env():
-    """ذخیره مقادیر فعلی در فایل .env"""
-    async with _env_lock:
-        env_data = {
-            "TEL_API_ID": str(TEL_API_ID),
-            "TEL_API_HASH": TEL_API_HASH,
-            "TEL_BOT_TOKEN": TEL_BOT_TOKEN,
+def _update_env_keys(updates: dict):
+    """
+    آپدیت هوشمند فایل .env:
+    جایگزینی فقط کلیدهای تغییر یافته، حفظ کامنت‌ها و سایر متغیرها
+    این تابع همگام (sync) است اما چون عملیات سریع I/O است مانعی ندارد.
+    """
+    env_path = ".env"
+    lines = []
+    
+    # خواندن خطوط قبلی در صورت وجود فایل
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
 
-            "TEL_ADMIN_IDS": ",".join(map(str, ADMIN_IDS)),
-            "TEL_START_TXT": START_TXT,
-            "TEL_HELP_TXT": HELP_TXT,
-            "TEL_ADS_CHANNELS": ",".join(ADS_CHANNELS),
+    new_lines = []
+    updated_keys = set()
 
-            "TEL_MAX_FILE_SIZE": str(MAX_FILE_SIZE // (1024 * 1024)),
-            "TEL_IN_MEMORY": str(IN_MEMORY),
+    for line in lines:
+        stripped_line = line.strip()
+        # نادیده گرفتن خطوط خالی و کامنت‌ها برای پارس کردن
+        if stripped_line and not stripped_line.startswith("#"):
+            parts = line.split("=", 1)
+            if len(parts) == 2:
+                key = parts[0].strip()
+                if key in updates:
+                    # جایگزینی با مقدار جدید
+                    new_lines.append(f"{key}={updates[key]}\n")
+                    updated_keys.add(key)
+                    continue
+        
+        # حفظ خطوط تغییر نیافته (کامنت‌ها، متغیرهای دیگر و...)
+        new_lines.append(line)
 
-            "TEL_PROXY_SCHEME": _tel_proxy_scheme or "",
-            "TEL_PROXY_HOST": _tel_proxy_host or "",
-            "TEL_PROXY_PORT": str(_tel_proxy_port or ""),
-        }
+    # اضافه کردن کلیدهای جدیدی که در فایل از قبل وجود نداشتند
+    for key, val in updates.items():
+        if key not in updated_keys:
+            if new_lines and not new_lines[-1].endswith("\n"):
+                new_lines[-1] += "\n"
+            new_lines.append(f"{key}={val}\n")
 
-        try:
-            with open(".env", "w", encoding="utf-8") as f:
-                for key, value in env_data.items():
-                    f.write(f"{key}={value}\n")
-            logger.info("[CONFIG] فایل .env با موفقیت ذخیره شد.")
-        except Exception as e:
-            logger.error(f"[CONFIG] خطا در ذخیره فایل .env: {e}")
-            raise
+    # نوشتن مجدد بدون از دست دادن اطلاعات قبلی
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.writelines(new_lines)
 
 
 async def add_ads_channel(channel_id: str):
-    """افزودن کانال جدید به لیست ADS_CHANNELS و ذخیره در .env"""
-    if channel_id in ADS_CHANNELS:
-        return False
+    """افزودن کانال جدید با حفظ ثبات داده و جلوگیری از Race Condition"""
+    async with _env_lock:
+        if channel_id in ADS_CHANNELS:
+            return False
 
-    ADS_CHANNELS.append(channel_id)
-    await _save_env()
-    logger.info(f"[CONFIG] کانال {channel_id} اضافه شد.")
-    return True
+        ADS_CHANNELS.append(channel_id)
+        
+        try:
+            _update_env_keys({"TEL_ADS_CHANNELS": ",".join(ADS_CHANNELS)})
+            logger.info(f"[CONFIG] کانال {channel_id} اضافه شد.")
+            return True
+        except Exception as e:
+            # Rollback: در صورت خطا در فایل، لیست حافظه به حالت قبل برمی‌گردد
+            ADS_CHANNELS.remove(channel_id)
+            logger.error(f"[CONFIG] خطا در اضافه کردن کانال (Rollback انجام شد): {e}")
+            return False
 
 
 async def remove_ads_channel(channel_id: str):
-    """حذف کانال از لیست ADS_CHANNELS و ذخیره در .env"""
-    if channel_id not in ADS_CHANNELS:
-        return False
+    """حذف کانال با حفظ ثبات داده و جلوگیری از Race Condition"""
+    async with _env_lock:
+        if channel_id not in ADS_CHANNELS:
+            return False
 
-    ADS_CHANNELS.remove(channel_id)
-    await _save_env()
-    logger.info(f"[CONFIG] کانال {channel_id} حذف شد.")
-    return True
+        ADS_CHANNELS.remove(channel_id)
+        
+        try:
+            _update_env_keys({"TEL_ADS_CHANNELS": ",".join(ADS_CHANNELS)})
+            logger.info(f"[CONFIG] کانال {channel_id} حذف شد.")
+            return True
+        except Exception as e:
+            # Rollback
+            ADS_CHANNELS.append(channel_id)
+            logger.error(f"[CONFIG] خطا در حذف کانال (Rollback انجام شد): {e}")
+            return False
 
 
 async def add_admin(admin_id: int):
-    """افزودن ادمین جدید به لیست ADMIN_IDS و ذخیره در .env"""
-    if admin_id in ADMIN_IDS:
-        return False
+    """افزودن ادمین جدید با حفظ ثبات داده و جلوگیری از Race Condition"""
+    async with _env_lock:
+        if admin_id in ADMIN_IDS:
+            return False
 
-    ADMIN_IDS.append(admin_id)
-    await _save_env()
-    logger.info(f"[CONFIG] ادمین {admin_id} اضافه شد.")
-    return True
+        ADMIN_IDS.append(admin_id)
+        
+        try:
+            _update_env_keys({"TEL_ADMIN_IDS": ",".join(map(str, ADMIN_IDS))})
+            logger.info(f"[CONFIG] ادمین {admin_id} اضافه شد.")
+            return True
+        except Exception as e:
+            # Rollback
+            ADMIN_IDS.remove(admin_id)
+            logger.error(f"[CONFIG] خطا در اضافه کردن ادمین (Rollback انجام شد): {e}")
+            return False
 
 
 async def remove_admin(admin_id: int):
-    """حذف ادمین از لیست ADMIN_IDS و ذخیره در .env"""
-    if admin_id not in ADMIN_IDS:
-        return False
+    """حذف ادمین با حفظ ثبات داده و جلوگیری از Race Condition"""
+    async with _env_lock:
+        if admin_id not in ADMIN_IDS:
+            return False
 
-    ADMIN_IDS.remove(admin_id)
-    await _save_env()
-    logger.info(f"[CONFIG] ادمین {admin_id} حذف شد.")
-    return True
+        ADMIN_IDS.remove(admin_id)
+        
+        try:
+            _update_env_keys({"TEL_ADMIN_IDS": ",".join(map(str, ADMIN_IDS))})
+            logger.info(f"[CONFIG] ادمین {admin_id} حذف شد.")
+            return True
+        except Exception as e:
+            # Rollback
+            ADMIN_IDS.append(admin_id)
+            logger.error(f"[CONFIG] خطا در حذف ادمین (Rollback انجام شد): {e}")
+            return False
