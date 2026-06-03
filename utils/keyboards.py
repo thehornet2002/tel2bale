@@ -1,16 +1,18 @@
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ButtonStyle
-
+import config
 
 def build_start_keyboard(is_admin):
     rows = [
         [InlineKeyboardButton(text="تنظیم ID عددی بله", callback_data='set_bale_id', style=ButtonStyle('primary'))],
         [InlineKeyboardButton(text='تنظیم Bot Token بله', callback_data='set_bale_bot_token', style=ButtonStyle('primary'))],
-        [InlineKeyboardButton(text='تنظیم Access Key و Secret Key فضای ابری آروان', callback_data="set_arvan_storage", style=ButtonStyle('primary'))],
-        [InlineKeyboardButton(text='حمایت مالی', url='https://daramet.com/Hornet2002', style=ButtonStyle('success'))],
-        [InlineKeyboardButton(text='راهنمای استفاده از ربات', callback_data='help', style=ButtonStyle('success'))],
-        [InlineKeyboardButton(text="ارسال پیام به پشتیبانی", callback_data='send_support_message', style=ButtonStyle('success'))]
+        [InlineKeyboardButton(text='تنظیم Access Key و Secret Key فضای ابری آروان', callback_data="set_arvan_storage", style=ButtonStyle('primary'))]
     ]
+    if config.DONATION_LINK:
+        rows.append([InlineKeyboardButton(text='حمایت مالی', url=config.DONATION_LINK, style=ButtonStyle('success'))])
+    rows.append([InlineKeyboardButton(text='راهنمای استفاده از ربات', callback_data='help', style=ButtonStyle('success'))])
+    rows.append([InlineKeyboardButton(text="ارسال پیام به پشتیبانی", callback_data='send_support_message', style=ButtonStyle('success'))])
+    rows.append([InlineKeyboardButton(text="GitHub", url='github.com/thehornet2002/tel2bale', style=ButtonStyle('success'))])
     if is_admin:
         rows.append([InlineKeyboardButton(text='پنل مدیریت', callback_data='management', style=ButtonStyle('danger'))])
     return InlineKeyboardMarkup(rows)
@@ -55,7 +57,8 @@ def build_management_keyboard():
             InlineKeyboardButton(text='تنظیم عکس پروفایل ربات', callback_data='set_profile_photo', style=ButtonStyle('primary'))
         ],
         [
-            InlineKeyboardButton(text='مشاهده پیام های بخش پشتیبانی', callback_data='show_support_messages', style=ButtonStyle('primary'))
+            InlineKeyboardButton(text='مشاهده پیام های بخش پشتیبانی', callback_data='show_support_messages', style=ButtonStyle('primary')),
+            InlineKeyboardButton(text='تغییر لینک دونیت', callback_data='change_donation_link', style=ButtonStyle('primary'))
         ],
         [
             InlineKeyboardButton(text='تنظیم محدودیت برای همه',callback_data='set_limit_all', style=ButtonStyle('danger')),

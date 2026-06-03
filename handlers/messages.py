@@ -31,6 +31,7 @@ from handlers.handler_helpers.message_helper import (
     set_limit_set_limit,
     set_profile_photo_send_photo,
     set_secret_key,
+    change_donation_link
 )
 
 from utils.filters import join_filter
@@ -60,6 +61,7 @@ STATE_HANDLERS = {
     "set_profile_photo_send_photo": set_profile_photo_send_photo,
     "set_limit_all_send_volume": set_limit_all_send_volume,
     "set_limit_send_id": set_limit_send_id,
+    "change_donation_link":change_donation_link
 }
 
 

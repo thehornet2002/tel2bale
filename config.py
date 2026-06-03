@@ -39,7 +39,7 @@ MAX_FILE_SIZE = _safe_int(os.getenv("TEL_MAX_FILE_SIZE"), 20) * 1024 * 1024
 
 START_TXT = os.getenv("TEL_START_TXT", "")
 HELP_TXT = os.getenv("TEL_HELP_TXT", "")
-
+DONATION_LINK = os.getenv("DONATION_LINK","")
 IN_MEMORY = os.getenv("TEL_IN_MEMORY", "False").lower() == "true"
 
 ADS_CHANNELS = _parse_list(os.getenv("TEL_ADS_CHANNELS", ""))
@@ -105,6 +105,45 @@ def _update_env_keys(updates: dict):
     with open(env_path, "w", encoding="utf-8") as f:
         f.writelines(new_lines)
 
+async def update_donation_link(new_link: str):
+    """
+    تغییر لینک حمایت مالی:
+    - اعتبارسنجی لینک
+    - آپدیت مقدار داخل حافظه برنامه
+    - ذخیره دائمی در فایل .env
+    - rollback در صورت خطا
+    """
+    global DONATION_LINK
+
+    new_link = (new_link or "").strip()
+
+    if not new_link:
+        return False
+
+    if not (
+        new_link.startswith("http://")
+        or new_link.startswith("https://")
+    ):
+        return False
+
+    async with _env_lock:
+        old_link = DONATION_LINK
+        DONATION_LINK = new_link
+
+        try:
+            # ذخیره دائمی در فایل .env
+            _update_env_keys({
+                "DONATION_LINK": DONATION_LINK
+            })
+
+            logger.info("[CONFIG] لینک حمایت مالی در فایل .env ذخیره شد.")
+            return True
+
+        except Exception as e:
+            # rollback مقدار حافظه در صورت خطای ذخیره فایل
+            DONATION_LINK = old_link
+            logger.error(f"[CONFIG] خطا در ذخیره لینک حمایت مالی: {e}")
+            return False
 
 async def add_ads_channel(channel_id: str):
     """افزودن کانال جدید با حفظ ثبات داده و جلوگیری از Race Condition"""

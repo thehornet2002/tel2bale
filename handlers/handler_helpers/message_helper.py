@@ -6,7 +6,7 @@ from pyrogram.types import Message
 from db import model_async
 from services.bale_service import bale_bot
 from utils.keyboards import build_back_keyboard, build_back_management_keyboard
-from config import add_ads_channel, remove_ads_channel, add_admin, remove_admin, MAX_FILE_SIZE, IN_MEMORY
+from config import add_ads_channel, remove_ads_channel, add_admin, remove_admin, MAX_FILE_SIZE, IN_MEMORY, update_donation_link
 from services.quota_service import check_and_update_quota
 from services import arvan_service
 from utils.logger import get_logger
@@ -404,6 +404,28 @@ async def set_limit_set_limit(message: Message, user_id: int):
         await model_async.set_state(user_id ,state='management')
         await message.reply_text("❌ خطا در اعمال محدودیت", reply_markup=build_back_management_keyboard())
 
+@admin_only
+async def change_donation_link(message:Message, user_id:int):
+    try:
+        result = await update_donation_link(message.text)
+        if not result:
+            await model_async.set_state(user_id, state='management')
+            await message.reply_text(
+                'لطفا لینک معتبر وارد کنید.',
+                reply_markup=build_back_management_keyboard()
+            )
+            return
+        await model_async.set_state(user_id, state='management')
+        await message.reply_text(
+            'لینک دونیت با موفقیت تغییر کرد.',
+            reply_markup=build_back_management_keyboard()
+        )
+    except Exception:
+            await model_async.set_state(user_id, state='management')
+            await message.reply_text(
+                'تغییر لینک دونیت با مشکل مواجه شد.',
+                reply_markup=build_back_management_keyboard()
+            )
 
 # ==========================================
 # Core Forward Logic

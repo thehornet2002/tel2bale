@@ -540,3 +540,15 @@ async def show_support_messages(
         f"{support_message['message_text']}",
         reply_markup=support_keyboard()
     )
+
+
+@admin_required
+async def change_donation_link(
+    message: Message,
+    user_id: int
+) -> None:
+    await set_state(user_id, 'change_donation_link')
+    await message.edit_text(
+        'لطفا لینک دونیت خود را وارد کنید.',
+        reply_markup=build_back_keyboard()
+    )

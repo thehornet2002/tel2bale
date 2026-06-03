@@ -34,7 +34,8 @@ from handlers.handler_helpers.callback_helper import (
     set_arvan,
     reset_access_key_arvan,
     set_bale_bot_token,
-    reset_bot_token
+    reset_bot_token,
+    change_donation_link
 )
 
 from utils.filters import join_filter_cb
@@ -77,6 +78,7 @@ CALLBACK_ROUTES = {
     "set_limit_all": set_limit_all,
     "set_limit": set_limit,
     "show_support_messages": show_support_messages,
+    "change_donation_link": change_donation_link
 
 }
 
