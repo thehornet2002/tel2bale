@@ -44,7 +44,6 @@ IN_MEMORY = os.getenv("TEL_IN_MEMORY", "False").lower() == "true"
 
 ADS_CHANNELS = _parse_list(os.getenv("TEL_ADS_CHANNELS", ""))
 
-
 # Telegram Proxy Config
 _tel_proxy_scheme = os.getenv("TEL_PROXY_SCHEME")
 _tel_proxy_host = os.getenv("TEL_PROXY_HOST")
@@ -114,17 +113,6 @@ async def update_donation_link(new_link: str):
     - rollback در صورت خطا
     """
     global DONATION_LINK
-
-    new_link = (new_link or "").strip()
-
-    if not new_link:
-        return False
-
-    if not (
-        new_link.startswith("http://")
-        or new_link.startswith("https://")
-    ):
-        return False
 
     async with _env_lock:
         old_link = DONATION_LINK

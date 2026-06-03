@@ -20,7 +20,8 @@ from db.model_async import (
     get_bale_id,
     get_access_key,
     get_secret_key,
-    get_bale_token
+    get_bale_token,
+    get_s3_endpoint
 )
 
 from utils.keyboards import (
@@ -30,7 +31,7 @@ from utils.keyboards import (
     build_start_keyboard,
     support_keyboard,
     yes_or_no_bale_id,
-    yes_or_no_set_arvan,
+    yes_or_no_set_s3,
     yes_or_no_set_bot_token
 )
 
@@ -140,14 +141,15 @@ async def reset_bale_id(
     )
 
 
-async def set_arvan(
+async def set_s3(
         message:Message,
         user_id:int
 ):
     access_key = await get_access_key(user_id)
     secret_key = await get_secret_key(user_id)
-    if secret_key == None or access_key == None:
-        await set_state(user_id, 'set_access_key_arvan')
+    s3_endpoint = await get_s3_endpoint(user_id)
+    if secret_key == None or access_key == None or s3_endpoint == None:
+        await set_state(user_id, 'set_s3_access_key')
         await message.edit_text(
             text='لطفا Access Key موجود در Arvan Storage را وارد کنید.',
             reply_markup=build_back_keyboard()
@@ -156,15 +158,15 @@ async def set_arvan(
     else:
         await message.edit_text(
             text='شما قبلا این مقدار تنظیم نموده اید آیا می خواهید آن را دوباره تنظیم کنید؟',
-            reply_markup=yes_or_no_set_arvan()
+            reply_markup=yes_or_no_set_s3()
         )
 
 
-async def reset_access_key_arvan(
+async def reset_s3_access_key(
         message:Message,
         user_id:int
 ):
-    await set_state(user_id, 'set_access_key_arvan')
+    await set_state(user_id, 'set_s3_access_key')
     await message.edit_text(
         text='لطفا Access Key موجود در Arvan Storage را وارد کنید.',
         reply_markup=build_back_keyboard()

@@ -6,7 +6,7 @@ def build_start_keyboard(is_admin):
     rows = [
         [InlineKeyboardButton(text="تنظیم ID عددی بله", callback_data='set_bale_id', style=ButtonStyle('primary'))],
         [InlineKeyboardButton(text='تنظیم Bot Token بله', callback_data='set_bale_bot_token', style=ButtonStyle('primary'))],
-        [InlineKeyboardButton(text='تنظیم Access Key و Secret Key فضای ابری آروان', callback_data="set_arvan_storage", style=ButtonStyle('primary'))]
+        [InlineKeyboardButton(text='تنظیم Access Key و Secret Key برای  S3', callback_data="set_s3", style=ButtonStyle('primary'))]
     ]
     if config.DONATION_LINK:
         rows.append([InlineKeyboardButton(text='حمایت مالی', url=config.DONATION_LINK, style=ButtonStyle('success'))])
@@ -140,9 +140,9 @@ def yes_or_no_bale_id():
     ]
     return InlineKeyboardMarkup(rows)
 
-def yes_or_no_set_arvan():
+def yes_or_no_set_s3():
     rows = [
-        [InlineKeyboardButton(text='بله',callback_data='reset_access_key_arvan', style=ButtonStyle('danger'))],
+        [InlineKeyboardButton(text='بله',callback_data='reset_s3_access_key', style=ButtonStyle('danger'))],
         [InlineKeyboardButton(text='خیر', callback_data='back', style=ButtonStyle('success'))]
     ]
     return InlineKeyboardMarkup(rows)   

@@ -24,14 +24,17 @@ from handlers.handler_helpers.message_helper import (
     send_message_chat_id,
     send_message_send_message,
     send_support_message,
-    set_access_key,
     set_bale_token_bot,
     set_limit_all_send_volume,
     set_limit_send_id,
     set_limit_set_limit,
     set_profile_photo_send_photo,
-    set_secret_key,
-    change_donation_link
+    change_donation_link,
+
+    #s3
+    set_s3_access_key,
+    set_s3_secret_key,
+    set_s3_endpoint
 )
 
 from utils.filters import join_filter
@@ -45,8 +48,6 @@ STATE_HANDLERS = {
     "home": forward,
     "enter_bale_id": enter_bale_id,
     "send_support_message": send_support_message,
-    "set_access_key_arvan": set_access_key,
-    "set_secret_key_arvan": set_secret_key,
     "set_bale_token_bot": set_bale_token_bot,
     "enter_bale_ban": enter_bale_ban,
     "enter_bale_unban": enter_bale_unban,
@@ -61,7 +62,11 @@ STATE_HANDLERS = {
     "set_profile_photo_send_photo": set_profile_photo_send_photo,
     "set_limit_all_send_volume": set_limit_all_send_volume,
     "set_limit_send_id": set_limit_send_id,
-    "change_donation_link":change_donation_link
+    "change_donation_link": change_donation_link,
+    #s3
+    "set_s3_access_key": set_s3_access_key,
+    "set_s3_secret_key": set_s3_secret_key,
+    "set_s3_endpoint": set_s3_endpoint
 }
 
 

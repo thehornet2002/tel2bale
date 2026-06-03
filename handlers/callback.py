@@ -31,11 +31,11 @@ from handlers.handler_helpers.callback_helper import (
     unban_bale,
     unban_telegram,
     reset_bale_id,
-    set_arvan,
-    reset_access_key_arvan,
+    set_s3,
+    reset_s3_access_key,
     set_bale_bot_token,
     reset_bot_token,
-    change_donation_link
+    change_donation_link,
 )
 
 from utils.filters import join_filter_cb
@@ -47,11 +47,11 @@ CALLBACK_ROUTES = {
     #set
     "set_bale_id": set_bale_id,
     "set_bale_bot_token":set_bale_bot_token,
-    "set_arvan_storage":set_arvan,
+    "set_s3":set_s3,
+    "reset_s3_access_key": reset_s3_access_key,
     #resets
     "reset_bale_id": reset_bale_id,
     "reset_bot_token": reset_bot_token,
-    "reset_access_key_arvan":reset_access_key_arvan,
     #other
     "send_support_message": send_support_message,
     "help": help,
@@ -78,8 +78,7 @@ CALLBACK_ROUTES = {
     "set_limit_all": set_limit_all,
     "set_limit": set_limit,
     "show_support_messages": show_support_messages,
-    "change_donation_link": change_donation_link
-
+    "change_donation_link": change_donation_link,
 }
 
 

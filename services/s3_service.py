@@ -6,8 +6,6 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# endpoint آروان کلاد
-ARVAN_ENDPOINT = "https://s3.ir-thr-at1.arvanstorage.ir"
 
 
 async def create_connection(access_key: str, secret_key: str) -> aioboto3.Session:
@@ -44,10 +42,10 @@ async def empty_bucket(s3_client, bucket_name: str):
 async def upload_file(
     session: aioboto3.Session,
     file_path: str,
-    object_key: str, # این مقدار ورودی را نادیده می‌گیریم یا صرفا برای لاگ استفاده می‌کنیم
+    endpoint_url: str ,
+    object_key: str,
     bucket_name: str = "my-telegram-bot",
     content_type: str = "application/octet-stream",
-    endpoint_url: str = ARVAN_ENDPOINT,
     expires_in: int = 3600,
 ) -> str:
     """
@@ -133,7 +131,7 @@ async def upload_file(
             except Exception as cleanup_error:
                 logger.error(f"Cleanup Error: {cleanup_error}")
 
-async def verify_credentials(access_key: str, secret_key: str) -> bool:
+async def verify_credentials(access_key: str, secret_key: str, endpoint_url: str ) -> bool:
     """
     بررسی صحت access_key و secret_key با ارسال یک درخواست سبک به آروان.
 
@@ -148,7 +146,7 @@ async def verify_credentials(access_key: str, secret_key: str) -> bool:
     """
     try:
         session = await create_connection(access_key, secret_key)
-        async with session.client("s3", endpoint_url=ARVAN_ENDPOINT) as s3:
+        async with session.client("s3", endpoint_url=endpoint_url) as s3:
             await s3.list_buckets()
         logger.info("[ARVAN] Credential verification successful.")
         return True

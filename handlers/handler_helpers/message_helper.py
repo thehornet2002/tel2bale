@@ -8,10 +8,11 @@ from services.bale_service import bale_bot
 from utils.keyboards import build_back_keyboard, build_back_management_keyboard
 from config import add_ads_channel, remove_ads_channel, add_admin, remove_admin, MAX_FILE_SIZE, IN_MEMORY, update_donation_link
 from services.quota_service import check_and_update_quota
-from services import arvan_service
+from services import s3_service
 from utils.logger import get_logger
 from urllib.parse import urlparse
 from pyrogram.errors import ChannelInvalid, ChannelPrivate, PeerIdInvalid, UsernameInvalid, UsernameNotOccupied
+from utils.parser import validate_link
 
 logger = get_logger(__name__)
 
@@ -165,26 +166,42 @@ async def enter_bale_id(message: Message, user_id: int):
     await model_async.set_state(user_id,'home')
     await message.reply_text('ID عددی شما در بله با موفقیت ثبت شد.', reply_markup=build_back_keyboard())
 
-async def set_access_key(message: Message, user_id: int):
+async def set_s3_access_key(message: Message, user_id: int):
     await model_async.set_access_key(user_id, message.text)
-    await model_async.set_state(user_id, 'set_secret_key_arvan')
+    await model_async.set_state(user_id, 'set_s3_secret_key')
     await message.reply_text('لطفا Secret Key را وارد نمایید.', reply_markup=build_back_keyboard())
 
-async def set_secret_key(message: Message, user_id: int):
+async def set_s3_secret_key(message: Message, user_id: int):
+    await model_async.set_secret_key(user_id, message.text)
+    await model_async.set_state(user_id, 'set_s3_endpoint')
+    await message.reply_text(
+        'لطفا S3 EndPoint را به صورت لینک وارد کنید.',
+        reply_markup=build_back_keyboard()
+    )
+
+async def set_s3_endpoint(message:Message, user_id:int):
+    endpoint_url = await validate_link(message.text)
+    if not endpoint_url:
+        await message.reply_text('لطفا Endpoint را به صورت لینک وارد کنید.', reply_markup=build_back_keyboard())
+        return
     access_key = await model_async.get_access_key(user_id)
-    verify_state = await arvan_service.verify_credentials(access_key=access_key, secret_key=message.text)
-    if verify_state:
+    secret_key = await model_async.get_secret_key(user_id)
+    valid_s3 = await s3_service.verify_credentials(access_key=access_key, secret_key=secret_key, endpoint_url=endpoint_url)
+    if not valid_s3:
+        await model_async.set_access_key(user_id, None)
+        await model_async.set_secret_key(user_id, None)
         await model_async.set_state(user_id, 'home')
-        await model_async.set_secret_key(user_id, message.text)
-        await message.reply_text('Secret Key و Access Key با موفقیت ثبت شدند.', reply_markup=build_back_keyboard())
-    else:
-        await model_async.set_access_key(user_id,'')
-        await model_async.set_state(user_id,'home')
         await message.reply_text(
-            'Access Key و Secret Key ثبت نشدند.\n'+'مشکل در احراز هویت آروان',
+            'لطفا مشخصات S3 معتبر وارد کنید',
             reply_markup=build_back_keyboard()
         )
-
+        return
+    await model_async.set_s3_endpoint(user_id, endpoint_url)
+    await model_async.set_state(user_id, 'home')
+    await message.reply_text(
+        'اطلاعات S3 با موفقیت ذخیره شد.',
+        reply_markup=build_back_keyboard()
+    )
 
 async def set_bale_token_bot(message: Message, user_id: int):
     verify_state = await bale_bot.verify_token(message.text)
@@ -407,7 +424,15 @@ async def set_limit_set_limit(message: Message, user_id: int):
 @admin_only
 async def change_donation_link(message:Message, user_id:int):
     try:
-        result = await update_donation_link(message.text)
+        new_link = await validate_link(message.text)
+        if not new_link:
+            await model_async.set_state(user_id, state='management')
+            await message.reply_text(
+                'لطفا لینک معتبر وارد کنید.',
+                reply_markup=build_back_management_keyboard()
+            )
+            return
+        result = await update_donation_link(new_link)
         if not result:
             await model_async.set_state(user_id, state='management')
             await message.reply_text(
@@ -495,11 +520,11 @@ async def forward(message: Message, user_id: int):
                     'لطفا ابتدا Access Key و Secret Key ر ا وارد کنید.',
                     reply_markup=build_back_keyboard()
                 )
-            s3_connection = await arvan_service.create_connection(access_key, secret_key)
+            s3_connection = await s3_service.create_connection(access_key, secret_key)
             
             # ۳. آپلود (ارسال مسیر فایل)
             object_name = os.path.basename(file_path)
-            link = await arvan_service.upload_file(
+            link = await s3_service.upload_file(
                 session=s3_connection,
                 file_path=file_path,
                 object_key=object_name

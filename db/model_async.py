@@ -18,13 +18,13 @@ _USER_READABLE_FIELDS: frozenset[str] = frozenset({
     "telegram_id", "bale_id", "is_banned", "is_admin",
     "state", "bale_token", "access_key", "secret_key",
     "downloaded_volume", "limit_download",
-    "created_at", "updated_at",
+    "created_at", "updated_at", "s3_endpoint",
 })
 
 _USER_UPDATABLE_FIELDS: frozenset[str] = frozenset({
     "bale_id", "is_banned", "is_admin", "state",
     "bale_token", "access_key", "secret_key",
-    "downloaded_volume", "limit_download",
+    "downloaded_volume", "limit_download", "s3_endpoint",
 })
 
 _LIMIT_VOLUME:float = 0
@@ -524,3 +524,10 @@ async def get_bale_token(tg_id: int) -> str:
 
 async def set_bale_token(tg_id: int, bale_token: str) -> bool:
     return await _update_user_field(tg_id, "bale_token", bale_token)
+
+async def get_s3_endpoint(tg_id: int) -> str | None:
+    return await _get_user_field(tg_id, "s3_endpoint", None)
+
+
+async def set_s3_endpoint(tg_id: int, s3_endpoint: str) -> bool:
+    return await _update_user_field(tg_id, "s3_endpoint", s3_endpoint)

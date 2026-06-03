@@ -22,6 +22,7 @@ def create_tables() -> None:
                 is_admin            INTEGER DEFAULT 0,
                 state               TEXT    DEFAULT 'home',
                 bale_token          TEXT    DEFAULT NULL,
+                s3_endpoint         TEXT    DEFAULT NULL,
                 access_key          TEXT    DEFAULT NULL,
                 secret_key          TEXT    DEFAULT NULL,
                 downloaded_volume   FLOAT   DEFAULT 0,
