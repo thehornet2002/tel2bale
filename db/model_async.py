@@ -62,6 +62,7 @@ async def _execute(query: str, params: tuple = ()) -> bool:
             await cursor.close()
 
 async def set_limit_volume(limit_volume:float):
+    global _LIMIT_VOLUME
     _LIMIT_VOLUME = limit_volume
     return
 

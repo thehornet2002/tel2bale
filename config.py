@@ -44,20 +44,50 @@ IN_MEMORY = os.getenv("TEL_IN_MEMORY", "False").lower() == "true"
 
 ADS_CHANNELS = _parse_list(os.getenv("TEL_ADS_CHANNELS", ""))
 
+# Proxy helpers
+def _clean_env(value: str | None) -> str:
+    """حذف فاصله و کوتیشن‌های اضافی از مقدارهای .env"""
+    if value is None:
+        return ""
+    return value.strip().strip('\'"')
+
+
+def _normalize_proxy_url(value: str | None, default_scheme: str = "http") -> str | None:
+    """
+    تبدیل proxy به فرم قابل استفاده برای aiohttp.
+    ورودی‌های قابل قبول:
+      127.0.0.1:10808
+      http://127.0.0.1:10808
+      socks5://127.0.0.1:10808
+    """
+    value = _clean_env(value)
+    if not value:
+        return None
+    if "://" not in value:
+        value = f"{default_scheme}://{value}"
+    return value
+
+
 # Telegram Proxy Config
-_tel_proxy_scheme = os.getenv("TEL_PROXY_SCHEME")
-_tel_proxy_host = os.getenv("TEL_PROXY_HOST")
-_tel_proxy_port = os.getenv("TEL_PROXY_PORT")
+_tel_proxy_scheme = _clean_env(os.getenv("TEL_PROXY_SCHEME"))
+_tel_proxy_host = _clean_env(os.getenv("TEL_PROXY_HOST"))
+_tel_proxy_port = _safe_int(os.getenv("TEL_PROXY_PORT"))
 
 TELPROXY = (
-    dict(
-        scheme=_tel_proxy_scheme,
-        hostname=_tel_proxy_host,
-        port=_safe_int(_tel_proxy_port)
-    )
+    {
+        "scheme": _tel_proxy_scheme,
+        "hostname": _tel_proxy_host,
+        "port": _tel_proxy_port,
+    }
     if _tel_proxy_scheme and _tel_proxy_host and _tel_proxy_port
     else None
 )
+
+# Bale Proxy Config
+# در bale_service.py به صورت kwargs["proxy"] برای aiohttp استفاده می‌شود.
+# اگر BALE_PROXY خالی باشد، مقدار None می‌شود و درخواست‌ها بدون proxy ارسال می‌شوند.
+BALE_PROXY = _clean_env(os.getenv("BALE_PROXY"))
+BALE_PROXY_URL = _normalize_proxy_url(BALE_PROXY)
 
 
 def _update_env_keys(updates: dict):

@@ -118,8 +118,11 @@ async def upload_file(
 
     except ClientError as e:
         error_msg = e.response.get("Error", {}).get("Message", str(e))
+        logger.error(f"[S3] ClientError: {error_msg}")
         return f"❌ خطای S3: {error_msg}"
+
     except Exception as e:
+        logger.error(f"[S3] Unexpected error: {e}")
         return f"❌ خطای غیرمنتظره: {e}"
     
     finally:

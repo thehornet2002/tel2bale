@@ -1,5 +1,7 @@
 from functools import wraps
 from pyrogram.types import Message
+from db.backup import create_database_backup_async
+import os
 
 from config import (
     START_TXT,
@@ -252,17 +254,30 @@ async def back_to_management(
 @admin_required
 async def get_db(
     message: Message,
-    user_id: int
+    user_id: int,
 ) -> None:
+    backup_path = None
 
-    await message.reply_document(
-        document=DB_NAME
-    )
+    try:
+        backup_path = await create_database_backup_async()
 
-    await message.reply_text(
-        "ادمین عزیز به پنل مدیریت ربات خوش آمدید",
-        reply_markup=build_management_keyboard()
-    )
+        await message.reply_document(
+            document=backup_path,
+            caption="✅ نسخه پشتیبان دیتابیس"
+        )
+
+    except Exception as e:
+        await message.reply_text(
+            f"❌ خطا در گرفتن backup دیتابیس:\n{e}",
+            reply_markup=build_back_management_keyboard()
+        )
+
+    finally:
+        if backup_path and os.path.exists(backup_path):
+            try:
+                os.remove(backup_path)
+            except Exception:
+                pass
 
 
 @admin_required

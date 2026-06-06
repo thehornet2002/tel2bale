@@ -1,5 +1,7 @@
 import aiohttp
 
+from config import BALE_PROXY_URL
+
 
 class BaleService:
     def __init__(self):
@@ -25,6 +27,10 @@ class BaleService:
             await self.start()
 
         url = f"https://tapi.bale.ai/bot{bale_bot_token}/{endpoint}"
+
+        # اگر proxy بله در .env تنظیم نشده باشد، مقدار None است و aiohttp بدون proxy کار می‌کند.
+        if BALE_PROXY_URL:
+            kwargs.setdefault("proxy", BALE_PROXY_URL)
 
         try:
             async with self.session.request(method, url, **kwargs) as resp:
@@ -83,10 +89,11 @@ class BaleService:
     ):
         data = aiohttp.FormData()
         data.add_field("chat_id", str(chat_id))
+        unique_name = f"{uuid.uuid4().hex}{ext}" 
         data.add_field(
             "photo",
             photo,
-            filename="photo.jpg",
+            filename=unique_name+".jpg",
             content_type="image/jpeg"
         )
 
@@ -108,10 +115,11 @@ class BaleService:
     ):
         data = aiohttp.FormData()
         data.add_field("chat_id", str(chat_id))
+        unique_name = f"{uuid.uuid4().hex}{ext}" 
         data.add_field(
             "video",
             video,
-            filename="video.mp4",
+            filename= unique_name + ".mp4",
             content_type="video/mp4"
         )
 
@@ -133,10 +141,11 @@ class BaleService:
     ):
         data = aiohttp.FormData()
         data.add_field("chat_id", str(chat_id))
+        unique_name = f"{uuid.uuid4().hex}{ext}" 
         data.add_field(
             "audio",
             audio,
-            filename="audio.mp3",
+            filename=unique_name + ".mp3",
             content_type="audio/mpeg"
         )
 
@@ -158,10 +167,11 @@ class BaleService:
     ):
         data = aiohttp.FormData()
         data.add_field("chat_id", str(chat_id))
+        unique_name = f"{uuid.uuid4().hex}{ext}" 
         data.add_field(
             "voice",
             voice,
-            filename="voice.ogg",
+            filename= unique_name + ".ogg",
             content_type="audio/ogg"
         )
 
@@ -209,10 +219,11 @@ class BaleService:
     ):
         data = aiohttp.FormData()
         data.add_field("chat_id", str(chat_id))
+        unique_name = f"{uuid.uuid4().hex}{ext}" 
         data.add_field(
             "animation",
             animation,
-            filename="animation.gif",
+            filename= unique_name + ".gif",
             content_type="video/mp4"
         )
 
@@ -233,10 +244,11 @@ class BaleService:
     ):
         data = aiohttp.FormData()
         data.add_field("chat_id", str(chat_id))
+        unique_name = f"{uuid.uuid4().hex}{ext}" 
         data.add_field(
             "video_note",
             video_note,
-            filename="video_note.mp4",
+            filename= unique_name+".mp4",
             content_type="video/mp4"
         )
 

@@ -13,7 +13,7 @@ from utils.logger import get_logger
 from urllib.parse import urlparse
 from pyrogram.errors import ChannelInvalid, ChannelPrivate, PeerIdInvalid, UsernameInvalid, UsernameNotOccupied
 from utils.parser import validate_link
-
+from services.quota_service import rollback_quota
 logger = get_logger(__name__)
 
 # ==========================================
@@ -330,43 +330,56 @@ async def send_message_send_message(message: Message, user_id: int):
             target_id = int(m.group(1))
             await message.copy(chat_id=target_id)
             await message.reply_text("✅ پیام با موفقیت ارسال شد", reply_markup=build_back_management_keyboard())
+            await model_async.set_state('home')
     except Exception:
         await message.reply_text("❌ خطا در ارسال پیام", reply_markup=build_back_management_keyboard())
+        await model_async.set_state('home')
 
 @admin_only
 async def add_admin_send_id(message: Message, user_id: int):
     target_id = await get_valid_id(message)
-    if not target_id: return
+    if not target_id:
+        await model_async.set_state('management')
+        return
         
     if not await model_async.set_admin(target_id):
         await message.reply_text('مشکل در تغییر در دیتابیس', reply_markup=build_back_management_keyboard())
+        await model_async.set_state('management')
         return
         
     if not await add_admin(target_id):
         await message.reply_text('مشکل در فایل .env', reply_markup=build_back_management_keyboard())
+        await model_async.set_state('management')
         return
     
     await message.reply_text('کاربر مورد نظر ادمین شد.', reply_markup=build_back_management_keyboard())
+    await model_async.set_state('management')
 
 @admin_only
 async def delete_admin_send_id(message: Message, user_id: int):
     target_id = await get_valid_id(message)
-    if not target_id: return
+    if not target_id:
+        await model_async.set_state('management')
+        return
 
     if not await remove_admin(target_id):
         await message.reply_text('مشکل در فایل .env', reply_markup=build_back_management_keyboard())
+        await model_async.set_state('management')
         return
         
     if not await model_async.unset_admin(target_id):
         await message.reply_text('مشکل در تغییر در دیتابیس', reply_markup=build_back_management_keyboard())
+        await model_async.set_state('management')
         return
 
     await message.reply_text('فرد مورد نظر از ادمینی خارج شد.', reply_markup=build_back_management_keyboard())
+    await model_async.set_state('management')
 
 @admin_only
 async def set_profile_photo_send_photo(message: Message, user_id: int):
     if not message.photo:
         await message.reply_text('پیامی که فرستادید حاوی عکس نمی باشد. لطفا دوباره تلاش کنید', reply_markup=build_back_management_keyboard())
+        await model_async.set_state('management')
         return
 
     path = None
@@ -377,8 +390,10 @@ async def set_profile_photo_send_photo(message: Message, user_id: int):
 
         await message._client.set_profile_photo(photo=path)
         await message.reply("✅ عکس پروفایل با موفقیت تغییر کرد!", reply_markup=build_back_management_keyboard())
+        await model_async.set_state('management')
     except Exception as e:
         await message.reply(f"❌ خطا: {e}", reply_markup=build_back_management_keyboard())
+        await model_async.set_state('management')
     finally:
         if path and os.path.exists(path):
             os.remove(path)
@@ -391,6 +406,7 @@ async def set_limit_all_send_volume(message: Message, user_id: int):
         await model_async.set_limit_volume(value)
         await model_async.set_state(user_id ,state='management')
         await message.reply_text('محدودیت با موفقیت اعمال شد.', reply_markup=build_back_management_keyboard())
+        await model_async.set_state('management')
     except ValueError:
         await message.reply_text('لطفا فقط عدد ارسال کنید.')
 
@@ -445,12 +461,14 @@ async def change_donation_link(message:Message, user_id:int):
             'لینک دونیت با موفقیت تغییر کرد.',
             reply_markup=build_back_management_keyboard()
         )
+        await model_async.set_state('management')
     except Exception:
             await model_async.set_state(user_id, state='management')
             await message.reply_text(
                 'تغییر لینک دونیت با مشکل مواجه شد.',
                 reply_markup=build_back_management_keyboard()
             )
+            await model_async.set_state('management')
 
 # ==========================================
 # Core Forward Logic
@@ -459,30 +477,31 @@ async def change_donation_link(message:Message, user_id:int):
 async def forward(message: Message, user_id: int):
     bale_id = await model_async.get_bale_id(user_id)
     if not bale_id:
-        await model_async.set_state(user_id ,state='home')
+        await model_async.set_state(user_id, state='home')
         return await message.reply_text('خطا: شناسه بله شما یافت نشد.', reply_markup=build_back_keyboard())
 
     bot_token = await model_async.get_bale_token(user_id)
     if not bot_token:
-        await model_async.set_state(user_id ,state='home')
+        await model_async.set_state(user_id, state='home')
         return await message.reply_text(
             'لطفا توکن ربات را وارد کنید.',
             reply_markup=build_back_keyboard()
         )
+
     # 1. Handle Non-Media Messages First
     try:
         if message.text:
             await bale_bot.send_message(bot_token, bale_id, message.text)
             return await message.reply_text('پیام با موفقیت ارسال شد.')
-            
+
         if message.location:
             await bale_bot.send_location(bot_token, bale_id, message.location.latitude, message.location.longitude)
             return await message.reply_text('موقعیت مکانی با موفقیت ارسال شد.')
-            
+
         if message.contact:
             await bale_bot.send_contact(bot_token, bale_id, message.contact.phone_number, message.contact.first_name, message.contact.last_name or "")
             return await message.reply_text('شماره تماس با موفقیت ارسال شد.')
-            
+
     except Exception as e:
         return await message.reply_text(format_bale_error(e))
 
@@ -495,67 +514,87 @@ async def forward(message: Message, user_id: int):
         return await message.reply_text('این نوع پیام پشتیبانی نمی‌شود.')
 
     file_size = getattr(media_obj, 'file_size', 0)
+
     has_quota = await check_and_update_quota(user_id, file_size)
     if not has_quota:
         return await message.reply_text('حجم مجاز شما به اتمام رسیده است.')
+
+    # 2.5 Large File → Upload to S3 and send link
     if file_size > MAX_FILE_SIZE:
         file_path = None
         try:
-            # ۱. دانلود فایل روی دیسک
-            file_path = await message.download(in_memory=False)
-            
-            # ۲. دریافت اطلاعات اتصال
             access_key = await model_async.get_access_key(user_id)
             if not access_key:
-                await model_async.set_state(user_id ,state='home')
+                await model_async.set_state(user_id, state='home')
                 return await message.reply_text(
-                    'لطفا ابتدا Access Key و Secret Key ر ا وارد کنید.',
+                    'لطفا در ابتدا S3 را تنظیم کنید.',
                     reply_markup=build_back_keyboard()
                 )
-                return
+
             secret_key = await model_async.get_secret_key(user_id)
             if not secret_key:
-                await model_async.set_state(user_id ,state='home')
+                await model_async.set_state(user_id, state='home')
                 return await message.reply_text(
-                    'لطفا ابتدا Access Key و Secret Key ر ا وارد کنید.',
+                    'لطفا در ابتدا S3 را تنظیم کنید.',
                     reply_markup=build_back_keyboard()
                 )
+
+            s3_endpoint = await model_async.get_s3_endpoint(user_id)
+            if not s3_endpoint:
+                await model_async.set_state(user_id, state='home')
+                return await message.reply_text(
+                    'لطفا در ابتدا S3 را تنظیم کنید.',
+                    reply_markup=build_back_keyboard()
+                )
+
             s3_connection = await s3_service.create_connection(access_key, secret_key)
-            
-            # ۳. آپلود (ارسال مسیر فایل)
+
+            # FIX 1: ذخیره پیام وضعیت برای ویرایش بعدی
+            status_msg = await message.reply_text('درحال دانلود ...')
+            file_path = await message.download(in_memory=False)
             object_name = os.path.basename(file_path)
+
+            await status_msg.edit_text('درحال آپلود ...')
             link = await s3_service.upload_file(
                 session=s3_connection,
                 file_path=file_path,
+                endpoint_url=s3_endpoint,
                 object_key=object_name
             )
-            result_msg = 'لینک موقت (یک ساعته) : ' + link
+            if not isinstance(link, str) or not link.startswith(("http://", "https://")):
+                raise RuntimeError(link)
+            result_msg = 'لینک موقت (یک ساعته) :' + '\n' + link
             await bale_bot.send_message(bot_token, bale_id, result_msg)
-            await message.reply_text(result_msg)
+            await status_msg.edit_text(result_msg)
+
             if message.caption:
                 await bale_bot.send_message(bot_token, bale_id, message.caption)
-            return
+
+            return  # ← موفقیت‌آمیز، از تابع خارج می‌شیم
 
         except Exception as e:
             await rollback_quota(user_id, file_size)
             await message.reply_text(f"❌ خطا در فرآیند آپلود: {e}")
-        
+            return  # FIX 2: جلوگیری از Fallthrough به بخش ۳
+
         finally:
-            # ۴. حذف حتمی فایل از روی دیسک (چه موفقیت آمیز باشد چه با خطا مواجه شود)
             if file_path and os.path.exists(file_path):
                 try:
                     os.remove(file_path)
                     logger.info(f"Cleanup: Temporary file {file_path} deleted.")
                 except Exception as cleanup_error:
-                    logger.error(f"Cleanup Error: Could not delete {file_path}. {cleanup_error}")  
+                    logger.error(f"Cleanup Error: Could not delete {file_path}. {cleanup_error}")
 
     # 3. Download and Forward Media
-    file = None  # ← قبل از try تعریف کن تا در finally همیشه موجود باشه
+    file = None
     try:
+        # FIX 1: ذخیره پیام وضعیت برای ویرایش بعدی
+        status_msg = await message.reply_text('درحال دانلود ...')
         file = await message.download(in_memory=IN_MEMORY)
-        if file:
+        if file and IN_MEMORY:
             file.seek(0)
 
+        await status_msg.edit_text('درحال ارسال به بله ...')
         caption = message.caption or ""
 
         if message.photo:
@@ -572,18 +611,18 @@ async def forward(message: Message, user_id: int):
             await bale_bot.send_animation(bot_token, bale_id, file, caption)
         elif message.video_note:
             await bale_bot.send_video(bot_token, bale_id, file)
-            await message.reply_text('توجه: ویدئوی گرد به صورت ویدئوی معمولی ارسال شد.')
+            await status_msg.edit_text('توجه: ویدئوی گرد به صورت ویدئوی معمولی ارسال شد.')
+            return
         else:
-            return await message.reply_text('این نوع پیام پشتیبانی نمی‌شود.')
+            return await status_msg.edit_text('این نوع پیام پشتیبانی نمی‌شود.')
 
-        await message.reply_text('پیام با موفقیت ارسال شد.')
+        await status_msg.edit_text('پیام با موفقیت ارسال شد.')
 
     except Exception as e:
         await rollback_quota(user_id, file_size)
         await message.reply_text(text=format_bale_error(e), reply_markup=build_back_keyboard())
 
     finally:
-        # وقتی IN_MEMORY=False، مقدار file یک string path هست
         if isinstance(file, str) and os.path.exists(file):
             try:
                 os.remove(file)
