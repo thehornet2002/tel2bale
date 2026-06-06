@@ -523,8 +523,6 @@ await telapp.set_bot_commands([
 ---
 
 ## ✅ برنامه‌های آینده
-
-- [ ] تنظیم endpoint دلخواه برای S3-compatible storage
 - [ ] بهبود مدیریت bucket در Arvan Storage
 - [ ] افزودن گروه پشتیبانی به‌جای ذخیره پیام در دیتابیس
 - [ ] محدودیت تعداد کاربران فعال
