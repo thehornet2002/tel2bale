@@ -41,6 +41,15 @@ START_TXT = os.getenv("TEL_START_TXT", "")
 HELP_TXT = os.getenv("TEL_HELP_TXT", "")
 DONATION_LINK = os.getenv("DONATION_LINK","")
 IN_MEMORY = os.getenv("TEL_IN_MEMORY", "False").lower() == "true"
+SUPPORT_MESSAGE = os.getenv('SUPPORT_MESSAGE', 'False').strip().lower() == 'true'
+SUPPORT_GROUP = os.getenv('SUPPORT_GROUP', '')
+SUPPORT_MESSAGE_LIMIT = _safe_int(os.getenv('SUPPORT_MESSAGE_LIMIT'), 3)
+
+# محدودیت تعداد کاربران (0 = بدون محدودیت)
+# MAX_USERS: کل کاربرانی که ربات را start کرده‌اند
+# MAX_ACTIVE_USERS: کاربرانی که bale_id یا bale_token تنظیم کرده‌اند
+MAX_USERS = _safe_int(os.getenv('MAX_USERS'), 0)
+MAX_ACTIVE_USERS = _safe_int(os.getenv('MAX_ACTIVE_USERS'), 0)
 
 ADS_CHANNELS = _parse_list(os.getenv("TEL_ADS_CHANNELS", ""))
 
@@ -133,6 +142,70 @@ def _update_env_keys(updates: dict):
     # نوشتن مجدد بدون از دست دادن اطلاعات قبلی
     with open(env_path, "w", encoding="utf-8") as f:
         f.writelines(new_lines)
+
+async def set_support_message_enabled(enabled: bool):
+    """
+    فعال/غیرفعال کردن نمایش گزینه «پیام به پشتیبانی» در منو.
+    این تابع در main.py و بعد از بررسی عضویت ربات در SUPPORT_GROUP فراخوانی می‌شود.
+    """
+    global SUPPORT_MESSAGE
+
+    async with _env_lock:
+        SUPPORT_MESSAGE = enabled
+        try:
+            _update_env_keys({"SUPPORT_MESSAGE": str(enabled)})
+        except Exception as e:
+            logger.error(f"[CONFIG] خطا در ذخیره وضعیت پشتیبانی: {e}")
+
+
+async def set_support_group(group_id: int) -> bool:
+    """ذخیره ID عددی گروه پشتیبانی در حافظه و فایل .env"""
+    global SUPPORT_GROUP
+
+    async with _env_lock:
+        old_group = SUPPORT_GROUP
+        SUPPORT_GROUP = str(group_id)
+        try:
+            _update_env_keys({"SUPPORT_GROUP": SUPPORT_GROUP})
+            logger.info("[CONFIG] گروه پشتیبانی در فایل .env ذخیره شد.")
+            return True
+        except Exception as e:
+            SUPPORT_GROUP = old_group
+            logger.error(f"[CONFIG] خطا در ذخیره گروه پشتیبانی: {e}")
+            return False
+
+
+async def set_max_users(value: int) -> bool:
+    """تنظیم سقف کل کاربرانی که مجاز به start کردن ربات هستند (0 = بدون محدودیت)"""
+    global MAX_USERS
+
+    async with _env_lock:
+        old_value = MAX_USERS
+        MAX_USERS = value
+        try:
+            _update_env_keys({"MAX_USERS": str(value)})
+            return True
+        except Exception as e:
+            MAX_USERS = old_value
+            logger.error(f"[CONFIG] خطا در ذخیره سقف کاربران: {e}")
+            return False
+
+
+async def set_max_active_users(value: int) -> bool:
+    """تنظیم سقف کاربران فعال (bale_id یا bale_token دارند) (0 = بدون محدودیت)"""
+    global MAX_ACTIVE_USERS
+
+    async with _env_lock:
+        old_value = MAX_ACTIVE_USERS
+        MAX_ACTIVE_USERS = value
+        try:
+            _update_env_keys({"MAX_ACTIVE_USERS": str(value)})
+            return True
+        except Exception as e:
+            MAX_ACTIVE_USERS = old_value
+            logger.error(f"[CONFIG] خطا در ذخیره سقف کاربران فعال: {e}")
+            return False
+
 
 async def update_donation_link(new_link: str):
     """

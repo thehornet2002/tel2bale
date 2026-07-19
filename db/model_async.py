@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 _USER_READABLE_FIELDS: frozenset[str] = frozenset({
     "telegram_id", "bale_id", "is_banned", "is_admin",
     "state", "bale_token", "access_key", "secret_key",
-    "downloaded_volume", "limit_download",
+    "downloaded_volume", "limit_download", "support_message_count",
     "created_at", "updated_at", "s3_endpoint",
 })
 
@@ -25,6 +25,7 @@ _USER_UPDATABLE_FIELDS: frozenset[str] = frozenset({
     "bale_id", "is_banned", "is_admin", "state",
     "bale_token", "access_key", "secret_key",
     "downloaded_volume", "limit_download", "s3_endpoint",
+    "support_message_count",
 })
 
 _LIMIT_VOLUME:float = 0
@@ -412,92 +413,6 @@ async def get_all_telegram_ids() -> list[int]:
     return [row["telegram_id"] for row in rows]
 
 
-# =========================
-# Support Messages
-# =========================
-
-async def save_support_message(tg_id: int, message_text: str) -> None:
-    async with get_async_db() as db:
-        await db.execute("""
-            INSERT INTO support_messages (telegram_id, message_text)
-            VALUES (?, ?)
-        """, (tg_id, message_text))
-
-    logger.info(f"[MODEL-ASYNC] Support message saved from user {tg_id}")
-
-
-async def get_unread_support_message() -> dict | None:
-    """
-    یک پیام خوانده‌نشده رو می‌گیره و atomically به عنوان خوانده‌شده mark می‌کنه.
-
-    Bug fix: قبلاً BEGIN IMMEDIATE داخل get_async_db() فراخوانی می‌شد که
-    باعث تداخل transaction می‌شد (nested transaction در SQLite مجاز نیست).
-
-    الان از get_async_db_immediate استفاده می‌کنیم که connection رو با
-    isolation_level=None می‌سازه و BEGIN IMMEDIATE رو خودش مدیریت می‌کنه.
-    این تضمین می‌کنه دو coroutine همزمان یک پیام رو نمی‌خونن.
-    """
-    async with get_async_db_immediate() as db:
-        cursor = await db.execute("""
-            SELECT id, telegram_id, message_text
-            FROM support_messages
-            WHERE is_read = 0
-            ORDER BY sent_at ASC
-            LIMIT 1
-        """)
-        try:
-            row = await cursor.fetchone()
-        finally:
-            await cursor.close()
-
-        if row is None:
-            return None
-
-        await db.execute("""
-            UPDATE support_messages
-            SET is_read = 1
-            WHERE id = ?
-        """, (row["id"],))
-
-        return {
-            "tg_id": row["telegram_id"],
-            "message_text": row["message_text"],
-        }
-
-
-async def get_unread_support_count() -> int:
-    row = await _fetchone("""
-        SELECT COUNT(*) AS total
-        FROM support_messages
-        WHERE is_read = 0
-    """)
-    if row is None:
-        return 0
-    return int(row["total"])
-
-
-async def get_support_messages(limit: int = 50) -> list[dict]:
-    return await _fetchall("""
-        SELECT id, telegram_id, message_text, is_read, sent_at
-        FROM support_messages
-        ORDER BY sent_at DESC
-        LIMIT ?
-    """, (limit,))
-
-
-async def mark_support_message_read(message_id: int) -> bool:
-    return await _execute(
-        "UPDATE support_messages SET is_read = 1 WHERE id = ?",
-        (message_id,),
-    )
-
-
-async def delete_support_message(message_id: int) -> bool:
-    return await _execute(
-        "DELETE FROM support_messages WHERE id = ?",
-        (message_id,),
-    )
-
 
 # =========================
 # Arvan Storage credentials
@@ -532,3 +447,80 @@ async def get_s3_endpoint(tg_id: int) -> str | None:
 
 async def set_s3_endpoint(tg_id: int, s3_endpoint: str) -> bool:
     return await _update_user_field(tg_id, "s3_endpoint", s3_endpoint)
+
+# =========================
+# Support messages (پیام به پشتیبانی)
+# =========================
+
+async def get_support_message_count(tg_id: int) -> int:
+    return int(await _get_user_field(tg_id, "support_message_count", 0) or 0)
+
+
+async def increment_support_message_count(tg_id: int) -> bool:
+    return await _execute("""
+        UPDATE users
+        SET support_message_count = support_message_count + 1,
+            updated_at = datetime('now','localtime')
+        WHERE telegram_id = ?
+    """, (tg_id,))
+
+
+async def reset_support_message_count(tg_id: int) -> bool:
+    return await _update_user_field(tg_id, "support_message_count", 0)
+
+
+async def save_support_message(tg_id: int, group_message_id: int) -> bool:
+    """ذخیره پیام ارسالی کاربر به گروه پشتیبانی برای تطبیق بعدی با ریپلای ادمین"""
+    async with get_async_db() as db:
+        await db.execute("""
+            INSERT INTO support_messages (telegram_id, group_message_id)
+            VALUES (?, ?)
+        """, (tg_id, group_message_id))
+    return True
+
+
+async def get_telegram_id_by_group_message(group_message_id: int) -> int | None:
+    row = await _fetchone(
+        """
+        SELECT telegram_id FROM support_messages
+        WHERE group_message_id = ? AND is_answered = 0
+        """,
+        (group_message_id,),
+    )
+    return row["telegram_id"] if row else None
+
+
+async def mark_support_message_answered(group_message_id: int) -> bool:
+    return await _execute(
+        "UPDATE support_messages SET is_answered = 1 WHERE group_message_id = ?",
+        (group_message_id,),
+    )
+
+# =========================
+# User / active-user limits (MAX_USERS, MAX_ACTIVE_USERS)
+# =========================
+
+async def get_user_count() -> int:
+    row = await _fetchone("SELECT COUNT(*) AS cnt FROM users")
+    return int(row["cnt"]) if row else 0
+
+
+async def get_active_user_count() -> int:
+    """
+    تعداد کاربرانی که حداقل bale_id یا bale_token تنظیم کرده‌اند (کاربر فعال)
+    """
+    row = await _fetchone("""
+        SELECT COUNT(*) AS cnt FROM users
+        WHERE bale_id IS NOT NULL
+           OR (bale_token IS NOT NULL AND bale_token != '')
+    """)
+    return int(row["cnt"]) if row else 0
+
+
+async def is_active_user(tg_id: int) -> bool:
+    row = await _fetchone("""
+        SELECT 1 FROM users
+        WHERE telegram_id = ?
+          AND (bale_id IS NOT NULL OR (bale_token IS NOT NULL AND bale_token != ''))
+    """, (tg_id,))
+    return row is not None

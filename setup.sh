@@ -249,6 +249,48 @@ if [ -f "example.env" ]; then
     [ -n "$TEMP_HELP" ] && EXTRACTED_HELP="$TEMP_HELP"
 fi
 
+echo ""
+echo -e "${YELLOW}--- User Limits Configuration ---${NC}"
+read -p "Max total users allowed to start the bot (0 = unlimited) [Default: 0]: " INPUT_MAX_USERS
+INPUT_MAX_USERS=${INPUT_MAX_USERS:-0}
+if ! [[ "$INPUT_MAX_USERS" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}Invalid numeric input. Using default (0 = unlimited)${NC}"
+    INPUT_MAX_USERS=0
+fi
+
+read -p "Max active users - users who set bale_id or bale_token (0 = unlimited) [Default: 0]: " INPUT_MAX_ACTIVE_USERS
+INPUT_MAX_ACTIVE_USERS=${INPUT_MAX_ACTIVE_USERS:-0}
+if ! [[ "$INPUT_MAX_ACTIVE_USERS" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}Invalid numeric input. Using default (0 = unlimited)${NC}"
+    INPUT_MAX_ACTIVE_USERS=0
+fi
+
+echo ""
+echo -e "${YELLOW}--- Support Group Configuration ---${NC}"
+read -p "Do you want to set up a support group? (y/n) [Default: n]: " INPUT_WANT_SUPPORT
+INPUT_WANT_SUPPORT=${INPUT_WANT_SUPPORT:-n}
+
+INPUT_SUPPORT_GROUP=""
+INPUT_SUPPORT_LIMIT=3
+
+if [[ "$INPUT_WANT_SUPPORT" == "y" || "$INPUT_WANT_SUPPORT" == "Y" ]]; then
+    read -p "Enter the numeric ID of the support group (bot must be a member of it): " INPUT_SUPPORT_GROUP
+    if ! [[ "$INPUT_SUPPORT_GROUP" =~ ^-?[0-9]+$ ]]; then
+        echo -e "${RED}Invalid numeric ID. Support group will not be configured.${NC}"
+        INPUT_SUPPORT_GROUP=""
+    fi
+
+    read -p "Enter max support messages per user before waiting for an admin reply [Default: 3]: " INPUT_SUPPORT_LIMIT
+    INPUT_SUPPORT_LIMIT=${INPUT_SUPPORT_LIMIT:-3}
+    if ! [[ "$INPUT_SUPPORT_LIMIT" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}Invalid numeric input. Using default (3)${NC}"
+        INPUT_SUPPORT_LIMIT=3
+    fi
+
+    echo -e "${BLUE}Note: bot membership in the group is verified automatically on startup;${NC}"
+    echo -e "${BLUE}the support menu option only appears if the bot is actually a member.${NC}"
+fi
+
 cat <<EOF > .env
 TEL_API_ID=$INPUT_API_ID
 TEL_API_HASH=$INPUT_API_HASH
@@ -266,6 +308,13 @@ TEL_IN_MEMORY=$INPUT_IN_MEMORY
 TEL_PROXY_SCHEME=
 TEL_PROXY_HOST=
 TEL_PROXY_PORT=
+
+SUPPORT_GROUP=$INPUT_SUPPORT_GROUP
+SUPPORT_MESSAGE_LIMIT=$INPUT_SUPPORT_LIMIT
+SUPPORT_MESSAGE=False
+
+MAX_USERS=$INPUT_MAX_USERS
+MAX_ACTIVE_USERS=$INPUT_MAX_ACTIVE_USERS
 EOF
 
 echo -e "${GREEN}✓ .env file created successfully${NC}"

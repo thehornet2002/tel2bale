@@ -2,7 +2,8 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 from pyrogram.errors import PeerIdInvalid, UserNotParticipant
 from pyrogram.types import CallbackQuery
-from config import ADS_CHANNELS
+from config import ADS_CHANNELS, MAX_USERS
+from db.model_async import is_user_exist, get_user_count
 from utils.keyboards import build_ads_channels
 from utils.logger import get_logger
 
@@ -86,3 +87,32 @@ def normalize_ads_chat_id(channel):
     return channel
 
 join_filter_cb = filters.create(_join_filter_cb_func)
+
+
+async def has_user_capacity(tg_id: int) -> bool:
+    """
+    بررسی می‌کند آیا ظرفیت ثبت‌نام کاربر جدید (MAX_USERS) هنوز خالی است یا نه.
+    کاربرانی که از قبل در دیتابیس هستند همیشه مجاز هستند (فقط کاربر جدید محدود می‌شود).
+    MAX_USERS برابر 0 به معنای بدون محدودیت است.
+    """
+    if not MAX_USERS:
+        return True
+
+    if await is_user_exist(tg_id):
+        return True
+
+    return await get_user_count() < MAX_USERS
+
+
+async def _user_limit_filter_func(_, client: Client, message: Message) -> bool:
+    if not message.from_user:
+        return False
+
+    if await has_user_capacity(message.from_user.id):
+        return True
+
+    await message.reply_text("ظرفیت ثبت‌نام کاربران جدید در ربات تکمیل شده است.")
+    return False
+
+
+user_limit_filter = filters.create(_user_limit_filter_func)

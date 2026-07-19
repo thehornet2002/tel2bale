@@ -4,3 +4,4 @@ aiosqlite==0.22.1
 python-dotenv==1.2.2
 aiohttp==3.13.5
 aioboto3==15.5.0
+pysqlite3==0.6.0

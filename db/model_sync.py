@@ -27,6 +27,7 @@ def create_tables() -> None:
                 secret_key          TEXT    DEFAULT NULL,
                 downloaded_volume   FLOAT   DEFAULT 0,
                 limit_download      FLOAT   DEFAULT 0,
+                support_message_count INTEGER DEFAULT 0,
                 created_at          TEXT DEFAULT (
                     datetime('now','localtime')
                 ),
@@ -36,25 +37,21 @@ def create_tables() -> None:
             )
         """)
 
-        db.execute("""
-            CREATE TABLE IF NOT EXISTS support_messages (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_id     INTEGER NOT NULL,
-                message_text    TEXT,
-                is_read         INTEGER DEFAULT 0,
-                sent_at         TEXT DEFAULT (
-                    datetime('now','localtime')
-                ),
-                FOREIGN KEY (telegram_id)
-                REFERENCES users(telegram_id)
-                ON DELETE CASCADE
-            )
-        """)
+        try:
+            db.execute("ALTER TABLE users ADD COLUMN support_message_count INTEGER DEFAULT 0")
+        except Exception:
+            pass
 
         db.execute("""
-            CREATE INDEX IF NOT EXISTS
-            idx_support_messages_is_read
-            ON support_messages(is_read, sent_at)
+            CREATE TABLE IF NOT EXISTS support_messages (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id         INTEGER NOT NULL,
+                group_message_id    INTEGER NOT NULL UNIQUE,
+                is_answered         INTEGER DEFAULT 0,
+                created_at          TEXT DEFAULT (
+                    datetime('now','localtime')
+                )
+            )
         """)
 
     logger.info(
