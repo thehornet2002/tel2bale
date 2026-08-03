@@ -19,9 +19,8 @@
 این پروژه مخصوص شرایطی طراحی شده که دسترسی به تلگرام سخت، کند یا محدود است؛ کاربر پیام، فایل یا رسانه را در تلگرام برای ربات می‌فرستد و ربات آن را به مقصد تنظیم‌شده در بله ارسال می‌کند.
 
 رفتار انتقال فایل‌ها:
-
 - فایل‌های کوچک‌تر یا مساوی مقدار `TEL_MAX_FILE_SIZE` به‌صورت مستقیم به بله ارسال می‌شوند.
-- فایل‌های بزرگ‌تر از این مقدار ابتدا روی **Arvan Storage** آپلود می‌شوند و لینک موقت آن برای مقصد ارسال می‌شود.
+- فایل‌های بزرگ‌تر از این مقدار ابتدا روی **Arvan Storage (S3 compatible)** آپلود می‌شوند و لینک موقت آن برای مقصد ارسال می‌شود.
 - مصرف حجم کاربران از طریق سیستم quota کنترل می‌شود.
 - برای جلوگیری از race condition، ثبت مصرف حجم به‌صورت atomic انجام می‌شود.
 
@@ -31,16 +30,16 @@
 
 - انتقال پیام متنی از تلگرام به بله
 - انتقال عکس، ویدئو، صوت، voice، document، animation، location و contact
-- پشتیبانی از فایل‌های بزرگ با Arvan Storage
+- پشتیبانی از فایل‌های بزرگ با Arvan Storage (S3 compatible)
 - تنظیم شناسه عددی بله توسط هر کاربر
 - تنظیم Bot Token بله توسط هر کاربر
-- تنظیم Access Key و Secret Key آروان توسط کاربر
+- تنظیم Access Key، Secret Key و Endpoint آروان توسط کاربر
 - پنل مدیریت با دکمه‌های inline
-- مدیریت ادمین‌ها
+- مدیریت ادمین‌ها (افزودن/حذف)
 - بن و آنبن کاربران با Telegram ID یا Bale ID
 - مشاهده ۱۰ کاربر پرمصرف
 - تنظیم محدودیت مصرف برای همه یا برای یک کاربر خاص
-- ارسال پیام همگانی
+- ارسال پیام همگانی (Broadcast)
 - ارسال پیام به کاربر خاص
 - دریافت فایل دیتابیس
 - دریافت و مشاهده پیام‌های پشتیبانی
@@ -53,19 +52,21 @@
   - آیدی عددی مثل `-1001234567890`
 - ذخیره‌سازی اطلاعات با SQLite
 - لاگ‌گیری چرخشی در پوشه `logs/`
+- گروه پشتیبانی (Support Group) برای دریافت پیام‌های کاربران
+- محدودیت تعداد کل کاربران و کاربران فعال
+- تغییر پویای لینک حمایت مالی
+- پشتیبان‌گیری از دیتابیس
 
 ---
 
 ## 📋 پیش‌نیازها
 
 ### سیستم‌عامل پیشنهادی
-
 - Ubuntu 20.04+
 - Debian 11+
 - یا هر سرور Linux سازگار با Python 3.10+
 
 ### منابع پیشنهادی
-
 - RAM: حداقل 512MB
 - Disk: حداقل 1GB فضای آزاد
 - Python: نسخه 3.10 یا بالاتر
@@ -73,36 +74,39 @@
 ### سرویس‌ها و توکن‌های لازم
 
 #### 1. Telegram Bot Token
-
 از [@BotFather](https://t.me/BotFather) یک ربات بسازید و توکن آن را دریافت کنید.
 
 #### 2. Telegram API ID و API Hash
-
 از سایت [my.telegram.org](https://my.telegram.org) وارد بخش **API development tools** شوید و مقدارهای زیر را دریافت کنید:
-
 - `TEL_API_ID`
 - `TEL_API_HASH`
 
 #### 3. Bale Bot Token
-
 در پیام‌رسان بله، از BotFather بله یک ربات بسازید و توکن آن را دریافت کنید.
 
-#### 4. Arvan Storage
-
-برای انتقال فایل‌های بزرگ، هر کاربر باید Access Key و Secret Key مربوط به Arvan Storage خودش را در ربات ثبت کند.
+#### 4. Arvan Storage (S3 Compatible)
+برای انتقال فایل‌های بزرگ، هر کاربر باید Access Key، Secret Key و Endpoint مربوط به Arvan Storage خودش را در ربات ثبت کند.
 
 ---
 
 ## 🚀 نصب و راه‌اندازی
 
-## روش ۱: نصب خودکار
+### روش ۱: نصب خودکار روی سرور Linux
+
+این دستور را در سرور Linux با کاربر root اجرا کنید؛ خود اسکریپت نصب نیاز به `sudo` داخل دستور اجرا ندارد.
 
 ```bash
-sudo bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup.sh)
+```
+
+اگر با کاربر root وارد نشده‌اید:
+
+```bash
+sudo -i
+bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup.sh)
 ```
 
 اسکریپت نصب خودکار این کارها را انجام می‌دهد:
-
 1. نصب ابزارهای لازم سیستم
 2. دانلود آخرین release پروژه
 3. نصب Python و venv
@@ -113,7 +117,7 @@ sudo bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/ma
 
 ---
 
-## روش ۲: نصب دستی
+### روش ۲: نصب دستی روی Linux
 
 ```bash
 git clone https://github.com/thehornet2002/tel2bale.git
@@ -122,8 +126,8 @@ cd tel2bale
 python3 -m venv .venv
 source .venv/bin/activate
 
-pip install --upgrade pip setuptools wheel
-pip install -r requirements.txt
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
 
 cp example.env .env
 nano .env
@@ -131,16 +135,19 @@ nano .env
 python main.py
 ```
 
-در ویندوز:
+### اجرای محلی در ویندوز برای تست و توسعه
+
+پروژه برای اجرا روی Linux نوشته شده، اما اگر سورس را روی ویندوز باز کرده‌اید می‌توانید برای تست محلی این دستورها را در PowerShell اجرا کنید:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 
-pip install --upgrade pip setuptools wheel
-pip install -r requirements.txt
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
 
 copy example.env .env
+notepad .env
 python main.py
 ```
 
@@ -163,11 +170,19 @@ TEL_HELP_TXT=ابتدا شناسه بله و توکن ربات بله خود ر�
 TEL_ADS_CHANNELS=
 TEL_MAX_FILE_SIZE=20
 TEL_IN_MEMORY=False
+DONATION_LINK=https://daramet.com/Hornet2002
+SUPPORT_MESSAGE=False
+MAX_USERS=0
+MAX_ACTIVE_USERS=0
+SUPPORT_GROUP=
 
 # Telegram Proxy Config
 TEL_PROXY_SCHEME=
 TEL_PROXY_HOST=
 TEL_PROXY_PORT=
+
+# Bale Proxy Config
+BALE_PROXY=
 ```
 
 ### توضیح متغیرها
@@ -177,15 +192,21 @@ TEL_PROXY_PORT=
 | `TEL_API_ID` | API ID تلگرام |
 | `TEL_API_HASH` | API Hash تلگرام |
 | `TEL_BOT_TOKEN` | توکن ربات تلگرام |
-| `TEL_ADMIN_IDS` | آیدی عددی ادمین‌ها، جداشده با کاما |
+| `TEL_ADMIN_IDS` | آیدی عددی ادمین‌ها، جدا شده با کاما |
 | `TEL_START_TXT` | متن پیام شروع |
 | `TEL_HELP_TXT` | متن راهنما |
-| `TEL_ADS_CHANNELS` | لیست کانال‌های Join اجباری، جداشده با کاما |
+| `TEL_ADS_CHANNELS` | لیست کانال‌های Join اجباری، جدا شده با کاما |
 | `TEL_MAX_FILE_SIZE` | سقف ارسال مستقیم فایل به مگابایت |
 | `TEL_IN_MEMORY` | اگر `True` باشد فایل‌های کوچک در RAM نگهداری می‌شوند |
+| `DONATION_LINK` | لینک حمایت مالی (قابل تغییر از پنل ادمین) |
+| `SUPPORT_MESSAGE` | فعال/غیرفعال کردن گزینه «پیام به پشتیبانی» در منو |
+| `MAX_USERS` | سقف کل کاربرانی که می‌توانند ربات را start کنند (0 = بدون محدودیت) |
+| `MAX_ACTIVE_USERS` | سقف کاربران فعال (که bale_id یا bale_token دارند) (0 = بدون محدودیت) |
+| `SUPPORT_GROUP` | آیدی عددی گروه پشتیبانی برای دریافت پیام‌های کاربران |
 | `TEL_PROXY_SCHEME` | نوع پروکسی تلگرام، مثل `socks5` |
 | `TEL_PROXY_HOST` | آدرس پروکسی |
 | `TEL_PROXY_PORT` | پورت پروکسی |
+| `BALE_PROXY` | پروکسی برای اتصال به بله؛ بدون scheme هم قبول می‌شود (مثال: `127.0.0.1:10808` یا `http://127.0.0.1:10808`) |
 
 ---
 
@@ -201,29 +222,55 @@ tel2bale/
 ├── .env
 │
 ├── db/
+│   ├── __init__.py
+│   ├── backup.py
 │   ├── db_async.py
 │   ├── db_sync.py
 │   ├── model_async.py
 │   └── model_sync.py
 │
 ├── handlers/
+│   ├── __init__.py
 │   ├── commands.py
 │   ├── messages.py
 │   ├── callback.py
 │   └── handler_helpers/
 │       ├── command_helper.py
-│       ├── message_helper.py
-│       └── callback_helper.py
+│       ├── callback_helpers/
+│       │   ├── navigation_handler.py
+│       │   ├── user_handler.py
+│       │   └── admin/
+│       │       ├── admin_mgmt_handler.py
+│       │       ├── ads_handler.py
+│       │       ├── ban_handler.py
+│       │       ├── core_handler.py
+│       │       ├── limit_handler.py
+│       │       ├── messaging_handler.py
+│       │       └── profile_handler.py
+│       └── message_helpers/
+│           ├── admin_handler.py
+│           ├── ads_handler.py
+│           ├── common.py
+│           ├── forward_handler.py
+│           ├── limit_handler.py
+│           ├── messaging_handler.py
+│           ├── profile_handler.py
+│           ├── s3_handler.py
+│           ├── support_handler.py
+│           └── user_handler.py
 │
 ├── services/
-│   ├── arvan_service.py
+│   ├── __init__.py
 │   ├── bale_service.py
-│   └── quota_service.py
+│   ├── quota_service.py
+│   └── s3_service.py
 │
 ├── utils/
+│   ├── __init__.py
 │   ├── filters.py
 │   ├── keyboards.py
-│   └── logger.py
+│   ├── logger.py
+│   └── parser.py
 │
 └── logs/
     └── bot.log
@@ -292,15 +339,21 @@ handlers/messages.py
 - آنبن با ID تلگرام
 - نمایش ۱۰ کاربر پرمصرف
 - مشاهده پیام‌های پشتیبانی
+- پاسخ به پیام پشتیبانی
 - تنظیم محدودیت مصرف برای همه کاربران
 - تنظیم محدودیت مصرف برای یک کاربر
 - ایجاد Join اجباری
 - حذف Join اجباری
-- ارسال تبلیغات یا پیام همگانی
+- ارسال تبلیغات یا پیام همگانی (Broadcast)
 - ارسال پیام به فرد خاص
 - اضافه کردن ادمین
 - حذف ادمین
 - تنظیم عکس پروفایل ربات
+- تنظیم گروه پشتیبانی
+- تنظیم سقف کل کاربران
+- تنظیم سقف کاربران فعال
+- تغییر لینک حمایت مالی
+- پشتیبان‌گیری از دیتابیس
 
 ---
 
@@ -317,7 +370,6 @@ t.me/my_channel
 ```
 
 قبل از ذخیره کانال، ربات بررسی می‌کند:
-
 1. ورودی معتبر باشد.
 2. کانال وجود داشته باشد.
 3. ربات در کانال عضو باشد.
@@ -329,15 +381,18 @@ t.me/my_channel
 
 ---
 
-## 📦 فایل‌های بزرگ و Arvan Storage
+## 📦 فایل‌های بزرگ و Arvan Storage (S3)
 
 اگر حجم فایل از مقدار `TEL_MAX_FILE_SIZE` بیشتر باشد:
 
 1. فایل از تلگرام دانلود می‌شود.
-2. با Access Key و Secret Key کاربر به Arvan Storage آپلود می‌شود.
-3. لینک موقت ساخته می‌شود.
-4. لینک برای مقصد در بله ارسال می‌شود.
-5. فایل موقت از سرور حذف می‌شود.
+2. با Access Key، Secret Key و Endpoint کاربر به Arvan Storage آپلود می‌شود.
+3. نام فایل به UUID تغییر می‌کند تا تداخل نام فایل‌ها پیشگیری شود.
+4. لینک موقت ساخته می‌شود (پیش‌فرض 1 ساعت).
+5. لینک برای مقصد در بله ارسال می‌شود.
+6. فایل موقت از سرور حذف می‌شود.
+
+**نکته:** اگر باکت پر باشد، ربات به‌صورت خودکار آن را تخلیه کرده و مجدداً آپلود را تلاش می‌کند.
 
 ---
 
@@ -364,17 +419,14 @@ bot.db
 جداول اصلی:
 
 ### `users`
-
 اطلاعات کاربران، وضعیت ban/admin، شناسه بله، توکن بله، کلیدهای آروان، state و مصرف حجم.
 
 ### `support_messages`
-
 پیام‌های پشتیبانی ارسال‌شده توسط کاربران.
 
 برای مشاهده دیتابیس می‌توانید از ابزارهایی مثل `sqlite3` یا DB Browser for SQLite استفاده کنید.
 
 نمونه:
-
 ```bash
 sqlite3 bot.db
 ```
@@ -437,7 +489,6 @@ sudo journalctl -u Tel2Bale -n 50
 ```
 
 موارد زیر را بررسی کنید:
-
 - مقدارهای `.env` درست باشند.
 - نام پوشه `handlers` درست باشد.
 - dependencyها نصب شده باشند.
@@ -450,10 +501,20 @@ sudo journalctl -u Tel2Bale -n 50
 
 نام پوشه باید `handlers` باشد، نه `handler`.
 
+روی Linux:
+
 ```bash
 mv handler handlers
 touch handlers/__init__.py
 touch handlers/handler_helpers/__init__.py
+```
+
+روی PowerShell ویندوز:
+
+```powershell
+Rename-Item handler handlers
+New-Item handlers\__init__.py -ItemType File
+New-Item handlers\handler_helpers\__init__.py -ItemType File
 ```
 
 ---
@@ -461,7 +522,6 @@ touch handlers/handler_helpers/__init__.py
 ### فایل‌ها به بله ارسال نمی‌شوند
 
 بررسی کنید:
-
 - Bale ID کاربر تنظیم شده باشد.
 - Bot Token بله تنظیم شده باشد.
 - ربات بله امکان ارسال پیام به مقصد را داشته باشد.
@@ -473,7 +533,6 @@ touch handlers/handler_helpers/__init__.py
 ### Join اجباری کار نمی‌کند
 
 بررسی کنید:
-
 - کانال عمومی باشد یا آیدی عددی معتبر داشته باشد.
 - ربات در کانال عضو باشد.
 - برای بررسی عضویت، بهتر است ربات در کانال admin باشد.
@@ -489,17 +548,6 @@ sudo apt install -y build-essential python3-dev python3-venv
 pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 ```
-
----
-
-## 🔐 نکات امنیتی
-
-- فایل `.env` را در Git منتشر نکنید.
-- توکن‌های تلگرام و بله را در لاگ یا پیام عمومی قرار ندهید.
-- Access Key و Secret Key آروان را فقط برای کاربر مربوطه نگهداری کنید.
-- دسترسی فایل دیتابیس و `.env` را محدود کنید.
-- اگر توکن لو رفت، سریعاً آن را revoke و مجدداً صادر کنید.
-- برای سیستم production، از کاربر جداگانه systemd به‌جای `root` استفاده کنید.
 
 ---
 
@@ -520,14 +568,18 @@ await telapp.set_bot_commands([
 
 در نسخه‌هایی از Kurigram که `telapp.run(main())` را پشتیبانی نمی‌کنند، از `asyncio.run(main())` استفاده کنید.
 
+### معماری سرویس‌های async
+
+- **bale_service.py**: کلاس `BaleService` با retry logic، timeout جداگانه برای مدیا و متن، و تبدیل امن فایل به bytes
+- **s3_service.py**: آپلود استریمی با aioboto3، مدیریت خودکار باکت، نام‌گذاری UUID برای فایل‌ها، و auto-cleanup
+- **quota_service.py**: مدیریت atomic quota با SQLite transactions
+- **config.py**: توابع async برای آپدیت پویای متغیرهای محیطی با lock و rollback
+
 ---
 
 ## ✅ برنامه‌های آینده
-- [ ] بهبود مدیریت bucket در Arvan Storage
-- [ ] افزودن گروه پشتیبانی به‌جای ذخیره پیام در دیتابیس
-- [ ] محدودیت تعداد کاربران فعال
-- [ ] پنل بهتر برای مدیریت پیام‌های پشتیبانی
-- [ ] تست خودکار برای quota و state machine
+
+- [ ] هر آنچه شما بگویید!
 
 ---
 
@@ -566,6 +618,7 @@ git push origin feature/my-feature
 حمایت مالی [دارمت](https://daramet.com/Hornet2002)
 
 ---
+
 <div align="center">
 
 اگر این پروژه برایتان مفید بود، ⭐ دادن به مخزن باعث دلگرمی است.
