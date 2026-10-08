@@ -2,7 +2,7 @@ kurigram==2.2.23
 TgCrypto==1.2.5
 aiosqlite==0.22.1
 python-dotenv==1.2.2
-aiohttp==3.13.5
+aiohttp==3.14.3
 aioboto3==15.5.0
 pysqlite3==0.6.0
 redis==8.1.0
