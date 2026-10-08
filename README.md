@@ -55,55 +55,63 @@
 
 ---
 
-## 🐳 راه‌اندازی سریع با Docker (روش پیشنهادی)
+## 🚀 روش‌های نصب و راه‌اندازی
 
-ساده‌ترین و پایدارترین روش استقرار ربات استفاده از Docker و Docker Compose است:
-
-### ۱. دریافت مخزن و تنظیم محیط
-```bash
-git clone https://github.com/thehornet2002/tel2bale.git
-cd tel2bale
-cp example.env .env
-nano .env
-```
-
-### ۲. اجرا با Docker Compose
-```bash
-docker compose up -d --build
-```
-
-### ۳. بررسی وضعیت و مشاهده لاگ‌ها
-```bash
-# مشاهده لاگ‌های زنده کانتینر
-docker compose logs -f
-
-# متوقف کردن ربات
-docker compose down
-
-# ری‌استارت ربات
-docker compose restart
-```
-
-دیتابیس، لاگ‌ها و بک‌آپ‌ها به‌صورت خودکار در دایرکتوری جاری هاست mount و ذخیره دائمی می‌شوند.
+شما می‌توانید ربات را با **Docker** یا **بدون Docker (به‌صورت Native روی سرور لینوکس یا ویندوز)** نصب و اجرا کنید.
 
 ---
 
-## 🚀 سایر روش‌های نصب
+### روش ۱: راه‌اندازی با Docker و Docker Compose (پیشنهادی)
 
-<details>
-<summary><b>روش ۱: نصب خودکار روی لینوکس (اسکریپت Setup)</b></summary>
+ساده‌ترین روش استقرار بدون درگیری با نصب پکیج‌های پایتون:
 
-در سرور لینوکس دستور زیر را با دسترسی root اجرا کنید:
+```bash
+# ۱. دریافت سورس پروژه
+git clone https://github.com/thehornet2002/tel2bale.git
+cd tel2bale
+
+# ۲. ساخت و تنظیم فایل .env
+cp example.env .env
+nano .env
+
+# ۳. بیلد و اجرا در پس‌زمینه
+docker compose up -d --build
+```
+
+**دستورات مدیریت کانتینر:**
+```bash
+docker compose logs -f       # مشاهده لاگ‌های زنده
+docker compose restart       # ری‌استارت ربات
+docker compose down          # توقف و بستن کانتینر
+```
+
+---
+
+### روش ۲: نصب خودکار بدون داکر روی لینوکس (اسکریپت One-Line)
+
+این اسکریپت به‌صورت خودکار پایتون، ابزارهای ساخت، کتابخانه‌ها، فایل `.env` و سرویس systemd را پیکربندی می‌کند:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup.sh)
 ```
-این اسکریپت تمام پکیج‌های پایتون، فایل سرویس systemd و تنظیمات اولیه را خودکار پیکربندی می‌کند.
-</details>
 
-<details>
-<summary><b>روش ۲: نصب دستی روی لینوکس (systemd)</b></summary>
+اگر با کاربر غیر root وارد شده‌اید:
+```bash
+sudo -i
+bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup.sh)
+```
 
+---
+
+### روش ۳: نصب دستی بدون داکر روی لینوکس (Native + Systemd)
+
+#### ۱. نصب وابستگی‌های سیستمی
+```bash
+sudo apt update
+sudo apt install -y python3 python3-venv python3-dev build-essential libjpeg-dev zlib1g-dev git
+```
+
+#### ۲. دریافت پروژه و ساخت محیط مجازی
 ```bash
 git clone https://github.com/thehornet2002/tel2bale.git
 cd tel2bale
@@ -111,19 +119,63 @@ cd tel2bale
 python3 -m venv .venv
 source .venv/bin/activate
 
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r requirements.txt
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+```
 
+#### ۳. تنظیم فایل پیکربندی
+```bash
 cp example.env .env
 nano .env
+```
 
+#### ۴. تست اجرای ربات
+```bash
 python main.py
 ```
-</details>
 
-<details>
-<summary><b>روش ۳: اجرا روی ویندوز (محیط تست و توسعه)</b></summary>
+#### ۵. اجرای دائمی در پس‌زمینه با سرویس Systemd
+یک فایل سرویس در مسیر `/etc/systemd/system/tel2bale.service` بسازید:
+```bash
+sudo nano /etc/systemd/system/tel2bale.service
+```
 
+محتوای زیر را در آن قرار دهید (مسیر `/root/tel2bale` را با مسیر پوشه خود تطبیق دهید):
+```ini
+[Unit]
+Description=Tel2Bale Bridge Bot Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/tel2bale
+ExecStart=/root/tel2bale/.venv/bin/python /root/tel2bale/main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+فعال‌سازی و شروع سرویس:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now tel2bale
+```
+
+دستورات مدیریت سرویس:
+```bash
+sudo systemctl status tel2bale     # بررسی وضعیت سرویس
+sudo systemctl restart tel2bale    # ری‌استارت سرویس
+sudo journalctl -u tel2bale -f     # مشاهده لاگ زنده
+```
+
+---
+
+### روش ۴: اجرا در ویندوز (محیط تست و توسعه محلی)
+
+در PowerShell:
 ```powershell
 git clone https://github.com/thehornet2002/tel2bale.git
 cd tel2bale
@@ -139,7 +191,6 @@ notepad .env
 
 python main.py
 ```
-</details>
 
 ---
 
