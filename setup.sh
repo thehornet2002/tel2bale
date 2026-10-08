@@ -266,8 +266,6 @@ if ! [[ "$INPUT_MAX_ACTIVE_USERS" =~ ^[0-9]+$ ]]; then
 fi
 
 echo ""
-echo -e "${YELLOW}--- Support Group Configuration ---${NC}"
-echo ""
 echo -e "${YELLOW}--- Ticket & Support Limits ---${NC}"
 read -p "Enter max pending tickets per user [Default: 5]: " INPUT_SUPPORT_LIMIT
 INPUT_SUPPORT_LIMIT=${INPUT_SUPPORT_LIMIT:-5}

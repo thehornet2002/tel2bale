@@ -18,7 +18,7 @@ async def management(message: Message, user_id: int) -> None:
     await message.reply_text(text, reply_markup=build_management_keyboard())
 
 
-# صفحه‌ی "management" و "back_to_management" دقیقا یک محتوا و رفتار دارن
+# back_to_management aliases directly to management
 back_to_management = management
 
 

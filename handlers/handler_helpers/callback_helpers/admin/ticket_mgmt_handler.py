@@ -1,5 +1,5 @@
 """
-هندلرهای مربوط به سیستم تیکتینگ و نظرسنجی ادمین (الگوبرداری از Senfi_bot)
+Administrative handlers for ticketing system, categories, and surveys.
 """
 from pyrogram.types import Message, CallbackQuery
 from db import model_async

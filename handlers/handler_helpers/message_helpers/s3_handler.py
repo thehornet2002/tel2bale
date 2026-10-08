@@ -1,5 +1,5 @@
 """
-هندلرهای مربوط به تنظیم اطلاعات S3 توسط کاربر.
+Handlers for user S3 storage credential configuration.
 """
 import re
 from pyrogram.types import Message

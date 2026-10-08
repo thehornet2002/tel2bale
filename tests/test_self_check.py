@@ -238,14 +238,14 @@ async def test_redis_state_integration():
     test_user_id = 555666777
     await model_async.add_user(test_user_id)
 
-    # تست ذخیره و بازیابی state با Redis
+    # Test state persistence with Redis
     await init_redis(config.REDIS_URL)
     if is_redis_available():
         await model_async.set_state(test_user_id, "redis_test_state")
         retrieved = await model_async.get_state(test_user_id)
         assert retrieved == "redis_test_state"
 
-        # پاک کردن مستقیم از کش RAM جهت اطمینان از خواندن از ردیس
+        # Clear in-memory cache to verify retrieval from Redis store
         model_async._STATE_CACHE.pop(test_user_id, None)
         retrieved_from_redis = await model_async.get_state(test_user_id)
         assert retrieved_from_redis == "redis_test_state"
@@ -253,7 +253,7 @@ async def test_redis_state_integration():
 
 
 async def test_ticket_system_integration():
-    # تست ثبت و بازیابی تیکت و دسته‌بندی‌ها
+    # Test ticket categories and creation
     cats = await model_async.get_ticket_categories()
     assert len(cats) >= 3
 
@@ -279,19 +279,19 @@ async def test_ticket_system_integration():
     assert len(user_tickets) >= 1
     assert any(t["id"] == ticket_id for t in user_tickets)
 
-    # تست پاسخ دادن به تیکت
+    # Test answering ticket
     await model_async.answer_ticket(ticket_id, "مشکل برطرف شد.")
     ticket_answered = await model_async.get_ticket(ticket_id)
     assert ticket_answered["status"] == "پاسخ داده شده"
     assert ticket_answered["reply"] == "مشکل برطرف شد."
 
-    # تست کپچا
+    # Test captcha generation
     from services.captcha_service import generate_hard_captcha
     code, img_bytes = generate_hard_captcha()
     assert len(code) == 5
     assert len(img_bytes) > 500
 
-    # تست سیستم نظرسنجی چندگانه
+    # Test multi-poll system
     poll_id = await model_async.create_poll("سرعت ارسال چطور است؟", ["عالی", "متوسط", "ضعیف"], title="نظرسنجی سرعت")
     assert poll_id > 0
 
@@ -299,18 +299,18 @@ async def test_ticket_system_integration():
     assert len(all_polls) >= 1
     assert any(p["id"] == poll_id for p in all_polls)
 
-    # تست ثبت رأی
+    # Test vote recording
     assert await model_async.record_poll_vote(poll_id, user_id, 0) is True
     vote_idx = await model_async.get_user_poll_vote(poll_id, user_id)
     assert vote_idx == 0
 
-    # تست دریافت نتایج نظرسنجی
+    # Test poll results calculation
     res = await model_async.get_poll_results(poll_id)
     assert res["total_votes"] == 1
     assert res["results"][0]["votes"] == 1
     assert res["results"][0]["percentage"] == 100.0
 
-    # تست دکمه دونیت در استارت کیبورد
+    # Test donation button in start keyboard
     from utils.keyboards import build_start_keyboard
     kb = build_start_keyboard()
     donate_btns = [btn for row in kb.inline_keyboard for btn in row if "دونیت" in btn.text or "حمایت" in btn.text]
@@ -324,17 +324,13 @@ async def test_security_guards():
     assert "manage_whitelist" in ADMIN_CALLBACK_NAMES
     assert "adm_manage_cats" in ADMIN_CALLBACK_NAMES
 
-    # تست پاکسازی ورودی‌های env
-    import config
-    import tempfile
-    # تست عدم امکان تزریق newline به env
+    # Test env sanitization against CRLF injection
     test_updates = {"TEST_KEY": "val\nMALICIOUS=true\r\nANOTHER=1"}
-    # مقدار باید بدون \r و \n ذخیره شود
     clean = str(test_updates["TEST_KEY"]).replace("\r", "").replace("\n", "").strip()
     assert "\n" not in clean
     assert "\r" not in clean
 
-    # تست فعال/غیرفعال‌سازی سه‌گانه کپچا
+    # Test 3-way captcha toggle flags
     await model_async.set_captcha_ticket_enabled(False)
     assert model_async.is_captcha_ticket_enabled() is False
     await model_async.set_captcha_ticket_enabled(True)

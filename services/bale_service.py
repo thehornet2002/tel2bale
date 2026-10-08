@@ -6,22 +6,20 @@ import uuid
 from config import BALE_PROXY_URL
 
 
-# تایم‌اوت درخواست‌های سبک (متن، لوکیشن، مخاطب و ...)
+# Request timeout for lightweight operations (text, location, contact, etc.)
 LIGHT_TIMEOUT = aiohttp.ClientTimeout(
     total=30,
     connect=10,
 )
 
-# تایم‌اوت درخواست‌های سنگین (عکس/ویدیو/صدا/فایل/انیمیشن/ویدیونوت)
-# total را بسیار بزرگ می‌گذاریم تا آپلود فایل‌های حجیم روی اینترنت کند هم
-# به‌خاطر timeout قطع نشود (که علت اصلی «ارسال ناقص» بود).
+# Request timeout for large media (photos, videos, audio, documents, animations)
 MEDIA_TIMEOUT = aiohttp.ClientTimeout(
-    total=600,          # حداکثر ۱۰ دقیقه برای کل عملیات آپلود
-    connect=15,          # اتصال اولیه باید سریع برقرار شود
-    sock_read=120,        # بین دو بسته‌ی داده حداکثر این‌قدر صبر کن
+    total=600,
+    connect=15,
+    sock_read=120,
 )
 
-# خطاهایی که موقتی و قابل تلاش‌مجدد هستند
+# Retryable transient network exceptions
 RETRYABLE_EXCEPTIONS = (
     aiohttp.ClientPayloadError,
     aiohttp.ClientConnectionError,
@@ -31,7 +29,7 @@ RETRYABLE_EXCEPTIONS = (
 )
 
 MAX_RETRIES = 3
-RETRY_BACKOFF_BASE = 1.5  # ثانیه
+RETRY_BACKOFF_BASE = 1.5
 
 
 class BaleService:
@@ -40,8 +38,7 @@ class BaleService:
 
     async def start(self):
         if not self.session or self.session.closed:
-            # timeout پیش‌فرض سشن را روی حالت سبک می‌گذاریم،
-            # و برای درخواست‌های رسانه‌ای در هر فراخوانی override می‌کنیم.
+            # Default session timeout is lightweight, overridden per-media request
             connector = aiohttp.TCPConnector(
                 limit=50,
                 ttl_dns_cache=300,
@@ -59,15 +56,8 @@ class BaleService:
     @staticmethod
     async def _to_bytes(file_obj) -> bytes:
         """
-        هر ورودی (bytes، file-like با read()، async file-like، یا مسیر) را
-        به bytes کامل تبدیل می‌کند.
-
-        این مرحله بسیار مهم است: اگر یک file handle یا BytesIO قبلاً
-        (مثلاً برای بررسی حجم) خوانده شده باشد، pointer آن روی انتها مانده
-        و بدون این تبدیل، محتوای ارسالی به بله خالی یا ناقص می‌شود.
-        همچنین با تبدیل کامل به bytes، aiohttp از ابتدا طول دقیق فایل
-        (Content-Length) را می‌داند و به‌جای chunked encoding نامطمئن،
-        یک درخواست کامل و قابل‌اعتماد می‌سازد.
+        Convert any input (bytes, file-like with read(), async file-like, or path)
+        into complete bytes data to ensure reliable Content-Length upload.
         """
         if file_obj is None:
             raise Exception("فایل ارسالی خالی است.")

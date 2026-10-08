@@ -17,7 +17,7 @@ def build_start_keyboard(is_admin: bool = False):
         [InlineKeyboardButton(text='تنظیم Bot Token بله', callback_data='set_bale_bot_token', style=ButtonStyle('primary'))],
         [InlineKeyboardButton(text='تنظیم Access Key و Secret Key برای  S3', callback_data="set_s3", style=ButtonStyle('primary'))]
     ]
-    # لینک دونیت همیشه در صفحه اصلی نمایش داده می‌شود
+    # Donation link is permanently displayed on start keyboard
     donate_url = config.DONATION_LINK or "https://daramet.com/Hornet2002"
     rows.append([InlineKeyboardButton(text='☕ حمایت مالی (دونیت)', url=donate_url, style=ButtonStyle('success'))])
     rows.append([InlineKeyboardButton(text='راهنمای استفاده از ربات', callback_data='help', style=ButtonStyle('success'))])
@@ -38,7 +38,7 @@ def build_back_keyboard():
     ]
     return InlineKeyboardMarkup(rows)
 def build_ads_channels(channels: list) -> InlineKeyboardMarkup:
-    """ساخت کیبورد شیشه‌ای برای کانال‌های عضویت اجباری"""
+    """Build inline keyboard linking to required join channels."""
     rows = []
     for i, ch in enumerate(channels, 1):
         ch_str = str(ch).strip()
@@ -62,7 +62,7 @@ def build_ads_channels(channels: list) -> InlineKeyboardMarkup:
 
 
 def build_management_keyboard() -> ReplyKeyboardMarkup:
-    """پنل مدیریت به صورت کامل در کیبورد پایین صفحه (ReplyKeyboardMarkup)"""
+    """Full administrative panel in bottom ReplyKeyboardMarkup."""
     rows = [
         [KeyboardButton("💾 دریافت دیتابیس"), KeyboardButton("📊 ۱۰ کاربر پرمصرف")],
         [KeyboardButton("🎫 تیکت‌های پشتیبانی"), KeyboardButton("🗂 موضوعات تیکت")],
@@ -85,7 +85,7 @@ def build_back_management_keyboard() -> ReplyKeyboardMarkup:
     return build_management_keyboard()
 
 def build_admin_home_reply_keyboard() -> ReplyKeyboardMarkup:
-    """منوی کوچک ادمین در حالت عادی جهت دسترسی سریع به پنل مدیریت"""
+    """Compact admin reply keyboard for quick panel access."""
     return ReplyKeyboardMarkup(
         [[KeyboardButton("⚙️ پنل مدیریت")]],
         resize_keyboard=True
@@ -93,7 +93,7 @@ def build_admin_home_reply_keyboard() -> ReplyKeyboardMarkup:
 
 
 def build_whitelist_reply_keyboard(is_enabled: bool) -> ReplyKeyboardMarkup:
-    """کیبورد پایین صفحه مدیریت لیست سفید"""
+    """Bottom reply keyboard for whitelist state toggle."""
     status_str = "🔴 غیرفعال‌سازی لیست سفید" if is_enabled else "🟢 فعال‌سازی لیست سفید"
     return ReplyKeyboardMarkup(
         [
@@ -107,14 +107,14 @@ def build_whitelist_reply_keyboard(is_enabled: bool) -> ReplyKeyboardMarkup:
 
 
 def build_main_reply_keyboard(is_admin: bool = False):
-    """کیبورد Reply فقط برای ادمین در دسترس است و هیچ گزینه‌ای برای bale_id یا bot_token ندارد."""
+    """Reply keyboard returned after start (only admins receive panel keys)."""
     if is_admin:
         return build_management_keyboard()
     return ReplyKeyboardRemove()
 
 
 def build_request_user_keyboard(button_text: str = "👤 انتخاب کاربر (Choose a user)") -> ReplyKeyboardMarkup:
-    """کیبورد پایین صفحه با دکمه native تلگرام برای انتخاب مستقیم کاربر"""
+    """Bottom reply keyboard with native Telegram user picker button."""
     return ReplyKeyboardMarkup(
         [
             [KeyboardButton(button_text, request_users=KeyboardButtonRequestUsers(button_id=1, max_quantity=1))],
@@ -126,7 +126,7 @@ def build_request_user_keyboard(button_text: str = "👤 انتخاب کاربر
 
 
 def build_request_group_keyboard(button_text: str = "👥 انتخاب گروه (Choose a group)") -> ReplyKeyboardMarkup:
-    """کیبورد پایین صفحه با دکمه native تلگرام برای انتخاب مستقیم گروه"""
+    """Bottom reply keyboard with native Telegram chat picker button."""
     return ReplyKeyboardMarkup(
         [
             [KeyboardButton(button_text, request_chat=KeyboardButtonRequestChat(button_id=2, chat_is_channel=False))],
@@ -138,7 +138,7 @@ def build_request_group_keyboard(button_text: str = "👥 انتخاب گروه 
 
 
 def build_cancel_reply_keyboard(button_text: str = "🔙 انصراف و بازگشت به مدیریت") -> ReplyKeyboardMarkup:
-    """کیبورد انصراف برای مراحل دریافت ورودی متنی ادمین"""
+    """Cancel button reply keyboard for admin interactive input states."""
     return ReplyKeyboardMarkup(
         [[KeyboardButton(button_text)]],
         resize_keyboard=True,
@@ -174,7 +174,7 @@ def yes_or_no_set_bot_token():
 
 
 def build_ticket_categories_keyboard(categories: list[dict]) -> InlineKeyboardMarkup:
-    """ساخت کیبورد انتخاب موضوع تیکت (مشابه Senfi_bot با نمایش حالت ناشناس/عادی)"""
+    """Build ticket categories selection keyboard with anonymity badges."""
     rows = []
     for cat in categories:
         badge = " (🕶 ناشناس)" if cat.get("is_anonymous") else " (👤 عادی)"
@@ -184,7 +184,7 @@ def build_ticket_categories_keyboard(categories: list[dict]) -> InlineKeyboardMa
 
 
 def build_admin_categories_manage_keyboard(categories: list[dict]) -> InlineKeyboardMarkup:
-    """کیبورد مدیریت موضوعات تیکت برای ادمین (افزودن و حذف عناوین)"""
+    """Administrative ticket categories management keyboard."""
     rows = []
     for c in categories:
         status_txt = "فعال" if c.get("is_active") else "آرشیو"
@@ -199,7 +199,7 @@ def build_admin_categories_manage_keyboard(categories: list[dict]) -> InlineKeyb
 
 
 def build_category_anonymity_keyboard() -> InlineKeyboardMarkup:
-    """انتخاب حالت عادی یا ناشناس برای عنوان جدید"""
+    """Select anonymity setting for new ticket category."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(text="👤 عادی (مشخصات کاربر نمایش داده شود)", callback_data="adm_cat_anon_0")],
         [InlineKeyboardButton(text="🕶 ناشناس (مشخصات کاربر مخفی بماند)", callback_data="adm_cat_anon_1")],
@@ -208,7 +208,7 @@ def build_category_anonymity_keyboard() -> InlineKeyboardMarkup:
 
 
 def build_category_delete_keyboard(cat_id: int) -> InlineKeyboardMarkup:
-    """گزینه‌های حذف موضوع تیکت"""
+    """Options for category deletion / archive."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(text="🗑 حذف موضوع (تیکت‌ها باقی بمانند)", callback_data=f"adm_del_cat_soft_{cat_id}")],
         [InlineKeyboardButton(text="⚠️ حذف موضوع همراه با تمام تیکت‌های آن", callback_data=f"adm_del_cat_hard_{cat_id}")],
@@ -217,7 +217,7 @@ def build_category_delete_keyboard(cat_id: int) -> InlineKeyboardMarkup:
 
 
 def build_user_tickets_keyboard(tickets: list[dict]) -> InlineKeyboardMarkup:
-    """لیست تیکت‌های کاربر"""
+    """List of tickets submitted by user."""
     rows = []
     for t in tickets:
         status_icon = "🟢" if t.get("status") == "پاسخ داده شده" else "🟡"
@@ -230,7 +230,7 @@ def build_user_tickets_keyboard(tickets: list[dict]) -> InlineKeyboardMarkup:
 
 
 def build_ticket_detail_keyboard(ticket_id: int) -> InlineKeyboardMarkup:
-    """دکمه‌های جزئیات تیکت"""
+    """Action buttons on ticket detail view."""
     rows = [
         [InlineKeyboardButton(text="📋 بازگشت به لیست تیکت‌ها", callback_data="user_my_tickets")],
         [InlineKeyboardButton(text="🔙 منوی اصلی", callback_data="back")]
@@ -245,9 +245,9 @@ def build_admin_tickets_list_keyboard(
     total_pages: int,
     status_counts: dict[str, int]
 ) -> InlineKeyboardMarkup:
-    """لیست تیکت‌ها در پنل ادمین مشابه Senfi_bot با تب‌های وضعیت و صفحه‌بندی"""
+    """Administrative tickets view with status tabs and pagination."""
     rows = []
-    # تب‌های فیلتر وضعیت
+    # Status filter tabs
     unread_cnt = status_counts.get("خوانده نشده", 0)
     ans_cnt = status_counts.get("پاسخ داده شده", 0)
     all_cnt = status_counts.get("همه", 0)
@@ -260,7 +260,7 @@ def build_admin_tickets_list_keyboard(
         InlineKeyboardButton(text=f"{'🔘 ' if status == 'همه' else ''}📋 همه تیکت‌ها ({all_cnt})", callback_data="adm_tickets:all:1"),
     ])
 
-    # لیست تیکت‌ها
+    # Tickets list
     for t in tickets:
         status_ico = "🟢" if t.get("status") == "پاسخ داده شده" else "🟡"
         uname = (t.get("user_name") or "کاربر")[:10]
@@ -271,7 +271,7 @@ def build_admin_tickets_list_keyboard(
             )
         ])
 
-    # نوار صفحه‌بندی
+    # Pagination navigation row
     nav_row = []
     if page > 1:
         status_param = "unread" if status == "خوانده نشده" else ("answered" if status == "پاسخ داده شده" else "all")
@@ -288,7 +288,7 @@ def build_admin_tickets_list_keyboard(
 
 
 def build_admin_ticket_view_keyboard(ticket_id: int, status: str, page: int) -> InlineKeyboardMarkup:
-    """دکمه‌های اقدام روی یک تیکت در پنل ادمین"""
+    """Action buttons on single ticket view in admin panel."""
     status_param = "unread" if status == "خوانده نشده" else ("answered" if status == "پاسخ داده شده" else "all")
     rows = [
         [InlineKeyboardButton(text="💬 ارسال پاسخ به کاربر", callback_data=f"adm_reply_ticket:{ticket_id}:{status_param}:{page}")],
@@ -298,7 +298,7 @@ def build_admin_ticket_view_keyboard(ticket_id: int, status: str, page: int) -> 
 
 
 def build_poll_voting_keyboard(poll_id: int, options: list[str], user_vote: int | None = None) -> InlineKeyboardMarkup:
-    """کیبورد شرکت در نظرسنجی برای کاربران"""
+    """Voting options keyboard for polls."""
     rows = []
     for idx, opt in enumerate(options):
         prefix = "✅ " if user_vote == idx else "▫️ "
@@ -309,7 +309,7 @@ def build_poll_voting_keyboard(poll_id: int, options: list[str], user_vote: int 
 
 
 def build_user_polls_list_keyboard(polls: list[dict]) -> InlineKeyboardMarkup:
-    """لیست چندگانه نظرسنجی‌ها برای کاربران (مشابه Senfi_bot)"""
+    """Multi-poll list for users."""
     rows = []
     for p in polls:
         title = p.get("title") or p.get("question") or f"نظرسنجی #{p['id']}"
@@ -319,7 +319,7 @@ def build_user_polls_list_keyboard(polls: list[dict]) -> InlineKeyboardMarkup:
 
 
 def build_captcha_keyboard(refreshes_left: int = 3) -> InlineKeyboardMarkup:
-    """کیبورد تصویر کپچا (الگوبرداری از Senfi)"""
+    """Captcha image prompt keyboard."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(text=f"🔄 تصویر جدید (فرصت: {refreshes_left})", callback_data="refresh_captcha")],
         [InlineKeyboardButton(text="🔙 انصراف و بازگشت", callback_data="back")],
@@ -327,7 +327,7 @@ def build_captcha_keyboard(refreshes_left: int = 3) -> InlineKeyboardMarkup:
 
 
 def build_admin_polls_manage_keyboard(polls: list[dict]) -> InlineKeyboardMarkup:
-    """کیبورد مدیریت نظرسنجی‌ها برای ادمین"""
+    """Admin polls management keyboard."""
     rows = []
     for p in polls:
         status_txt = "🟢 فعال" if p.get("is_active") else "🔴 بسته"
@@ -342,7 +342,7 @@ def build_admin_polls_manage_keyboard(polls: list[dict]) -> InlineKeyboardMarkup
 
 
 def build_admin_poll_detail_keyboard(poll: dict) -> InlineKeyboardMarkup:
-    """عملیات ادمین روی نظرسنجی مشخص"""
+    """Admin action buttons on selected poll."""
     toggle_txt = "🔒 بستن نظرسنجی" if poll.get("is_active") else "🔓 فعال‌سازی مجدد"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(text="📊 مشاهده نتایج آرا", callback_data=f"poll_results:{poll['id']}")],
@@ -353,7 +353,7 @@ def build_admin_poll_detail_keyboard(poll: dict) -> InlineKeyboardMarkup:
 
 
 def build_captcha_settings_keyboard(ticket_on: bool, poll_on: bool, file_on: bool) -> InlineKeyboardMarkup:
-    """کیبورد تنظیمات فعال/غیرفعال‌سازی کپچا برای بخش‌های مختلف"""
+    """Captcha security toggle keyboard for admin."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(
             text=f"🎫 کپچای تیکت: {'🟢 فعال' if ticket_on else '🔴 غیرفعال'}",

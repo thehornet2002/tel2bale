@@ -1,5 +1,5 @@
 """
-مدیریت چالش کپچا امنیتی پیشرفته قبل از ارسال تیکت (الگوبرداری از Senfi)
+Advanced anti-spam security captcha challenge handler.
 """
 import io
 import time

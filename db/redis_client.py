@@ -1,5 +1,5 @@
 """
-مدیریت کلاینت و عملیات‌های Redis به صورت Asynchronous با قابلیت Fallback خودکار به حافظه.
+Asynchronous Redis client and session management with graceful RAM/SQLite fallback.
 """
 from typing import Any
 import redis.asyncio as aioredis
@@ -12,7 +12,7 @@ _redis_available: bool = False
 
 
 async def init_redis(redis_url: str | None) -> None:
-    """راه‌اندازی اتصال به Redis در صورت تنظیم بودن REDIS_URL"""
+    """Initialize Redis connection if REDIS_URL is configured."""
     global _redis_client, _redis_available
     if not redis_url:
         _redis_available = False
@@ -38,7 +38,7 @@ async def init_redis(redis_url: str | None) -> None:
 
 
 async def close_redis() -> None:
-    """بستن سشن Redis در زمان خاموش شدن ربات"""
+    """Close Redis session on application shutdown."""
     global _redis_client, _redis_available
     if _redis_client:
         try:
@@ -55,7 +55,7 @@ def is_redis_available() -> bool:
 
 
 async def redis_set_state(tg_id: int, state: str, expire_seconds: int = 86400 * 7) -> bool:
-    """ذخیره State کاربر در Redis با زمان انقضا"""
+    """Store user state in Redis with expiration TTL."""
     if not is_redis_available():
         return False
     try:
@@ -68,7 +68,7 @@ async def redis_set_state(tg_id: int, state: str, expire_seconds: int = 86400 * 
 
 
 async def redis_get_state(tg_id: int) -> str | None:
-    """دریافت State کاربر از Redis"""
+    """Retrieve user state from Redis."""
     if not is_redis_available():
         return None
     try:
@@ -81,7 +81,7 @@ async def redis_get_state(tg_id: int) -> str | None:
 
 
 async def redis_delete_state(tg_id: int) -> bool:
-    """حذف State کاربر از Redis"""
+    """Delete user state from Redis."""
     if not is_redis_available():
         return False
     try:

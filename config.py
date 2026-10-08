@@ -6,7 +6,7 @@ from utils.logger import get_logger
 load_dotenv()
 logger = get_logger(__name__)
 
-# Lock برای جلوگیری از race conditions
+# Mutex lock to prevent race conditions during environment updates
 _env_lock = asyncio.Lock()
 
 
@@ -21,14 +21,14 @@ def _parse_list(value: str, cast_func=str):
 
 
 def _safe_int(value: str, default: int = 0) -> int:
-    """جلوگیری از Crash در صورت None یا خالی بودن مقادیر ورودی"""
+    """Safely cast string to integer with fallback default."""
     try:
         return int(value) if value else default
     except (TypeError, ValueError):
         return default
 
 
-# Telegram Config (حل مشکل Crash روی Import با مقادیر پیش‌فرض امن)
+# Telegram Bot Configuration
 TEL_API_ID = _safe_int(os.getenv("TEL_API_ID"))
 TEL_API_HASH = os.getenv("TEL_API_HASH", "")
 TEL_BOT_TOKEN = os.getenv("TEL_BOT_TOKEN", "")
@@ -39,13 +39,11 @@ MAX_FILE_SIZE = _safe_int(os.getenv("TEL_MAX_FILE_SIZE"), 20) * 1024 * 1024
 
 START_TXT = os.getenv("TEL_START_TXT", "")
 HELP_TXT = os.getenv("TEL_HELP_TXT", "")
-DONATION_LINK = os.getenv("DONATION_LINK","")
+DONATION_LINK = os.getenv("DONATION_LINK", "")
 IN_MEMORY = os.getenv("TEL_IN_MEMORY", "False").lower() == "true"
 SUPPORT_MESSAGE_LIMIT = _safe_int(os.getenv('SUPPORT_MESSAGE_LIMIT'), 5)
 
-# محدودیت تعداد کاربران (0 = بدون محدودیت)
-# MAX_USERS: کل کاربرانی که ربات را start کرده‌اند
-# MAX_ACTIVE_USERS: کاربرانی که bale_id یا bale_token تنظیم کرده‌اند
+# Capacity Limits (0 = Unlimited)
 MAX_USERS = _safe_int(os.getenv('MAX_USERS'), 0)
 MAX_ACTIVE_USERS = _safe_int(os.getenv('MAX_ACTIVE_USERS'), 0)
 
@@ -54,25 +52,19 @@ ADS_CHANNELS = _parse_list(os.getenv("TEL_ADS_CHANNELS", ""))
 WHITELIST_USERS = _parse_list(os.getenv("TEL_WHITELIST_USERS", ""), int)
 WHITELIST_ENABLED = os.getenv("TEL_WHITELIST_ENABLED", "False").strip().lower() == "true"
 
-# Redis Config
+# Redis Configuration
 REDIS_URL = os.getenv("REDIS_URL", "").strip().strip('\'"') or None
 
-# Proxy helpers
+# Proxy Helpers
 def _clean_env(value: str | None) -> str:
-    """حذف فاصله و کوتیشن‌های اضافی از مقدارهای .env"""
+    """Strip whitespace and quotation marks from environment values."""
     if value is None:
         return ""
     return value.strip().strip('\'"')
 
 
 def _normalize_proxy_url(value: str | None, default_scheme: str = "http") -> str | None:
-    """
-    تبدیل proxy به فرم قابل استفاده برای aiohttp.
-    ورودی‌های قابل قبول:
-      127.0.0.1:10808
-      http://127.0.0.1:10808
-      socks5://127.0.0.1:10808
-    """
+    """Normalize proxy string into standard URL format for aiohttp."""
     value = _clean_env(value)
     if not value:
         return None
@@ -81,7 +73,7 @@ def _normalize_proxy_url(value: str | None, default_scheme: str = "http") -> str
     return value
 
 
-# Telegram Proxy Config
+# Telegram Proxy Configuration
 _tel_proxy_scheme = _clean_env(os.getenv("TEL_PROXY_SCHEME"))
 _tel_proxy_host = _clean_env(os.getenv("TEL_PROXY_HOST"))
 _tel_proxy_port = _safe_int(os.getenv("TEL_PROXY_PORT"))
@@ -96,23 +88,19 @@ TELPROXY = (
     else None
 )
 
-# Bale Proxy Config
-# در bale_service.py به صورت kwargs["proxy"] برای aiohttp استفاده می‌شود.
-# اگر BALE_PROXY خالی باشد، مقدار None می‌شود و درخواست‌ها بدون proxy ارسال می‌شوند.
+# Bale Proxy Configuration
 BALE_PROXY = _clean_env(os.getenv("BALE_PROXY"))
 BALE_PROXY_URL = _normalize_proxy_url(BALE_PROXY)
 
 
 def _update_env_keys(updates: dict):
     """
-    آپدیت هوشمند فایل .env:
-    جایگزینی فقط کلیدهای تغییر یافته، حفظ کامنت‌ها و سایر متغیرها
-    این تابع همگام (sync) است اما چون عملیات سریع I/O است مانعی ندارد.
+    Update selected keys in .env file while preserving comments and existing variables.
+    Sanitizes values against CRLF injection.
     """
     env_path = ".env"
     lines = []
-    
-    # خواندن خطوط قبلی در صورت وجود فایل
+
     if os.path.exists(env_path):
         with open(env_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -122,39 +110,31 @@ def _update_env_keys(updates: dict):
 
     for line in lines:
         stripped_line = line.strip()
-        # نادیده گرفتن خطوط خالی و کامنت‌ها برای پارس کردن
         if stripped_line and not stripped_line.startswith("#"):
             parts = line.split("=", 1)
             if len(parts) == 2:
                 key = parts[0].strip()
                 if key in updates:
                     clean_val = str(updates[key]).replace("\r", "").replace("\n", "").strip()
-                    # جایگزینی با مقدار جدید
                     new_lines.append(f"{key}={clean_val}\n")
                     updated_keys.add(key)
                     continue
-        
-        # حفظ خطوط تغییر نیافته (کامنت‌ها، متغیرهای دیگر و...)
+
         new_lines.append(line)
 
-    # اضافه کردن کلیدهای جدیدی که در فایل از قبل وجود نداشتند
     for key, val in updates.items():
         clean_val = str(val).replace("\r", "").replace("\n", "").strip()
         if key not in updated_keys:
             if new_lines and not new_lines[-1].endswith("\n"):
                 new_lines[-1] += "\n"
             new_lines.append(f"{key}={clean_val}\n")
-        else:
-            # بررسی مجدد خطوطی که جایگزین شدند با مقدار امن
-            pass
 
-    # نوشتن مجدد بدون از دست دادن اطلاعات قبلی
     with open(env_path, "w", encoding="utf-8") as f:
         f.writelines(new_lines)
 
 
 async def set_max_users(value: int) -> bool:
-    """تنظیم سقف کل کاربرانی که مجاز به start کردن ربات هستند (0 = بدون محدودیت)"""
+    """Set total registration user capacity (0 = unlimited)."""
     global MAX_USERS
 
     async with _env_lock:
@@ -165,12 +145,12 @@ async def set_max_users(value: int) -> bool:
             return True
         except Exception as e:
             MAX_USERS = old_value
-            logger.error(f"[CONFIG] خطا در ذخیره سقف کاربران: {e}")
+            logger.error(f"[CONFIG] Error saving MAX_USERS: {e}")
             return False
 
 
 async def set_max_active_users(value: int) -> bool:
-    """تنظیم سقف کاربران فعال (bale_id یا bale_token دارند) (0 = بدون محدودیت)"""
+    """Set maximum active users with configured Bale tokens (0 = unlimited)."""
     global MAX_ACTIVE_USERS
 
     async with _env_lock:
@@ -181,18 +161,12 @@ async def set_max_active_users(value: int) -> bool:
             return True
         except Exception as e:
             MAX_ACTIVE_USERS = old_value
-            logger.error(f"[CONFIG] خطا در ذخیره سقف کاربران فعال: {e}")
+            logger.error(f"[CONFIG] Error saving MAX_ACTIVE_USERS: {e}")
             return False
 
 
 async def update_donation_link(new_link: str):
-    """
-    تغییر لینک حمایت مالی:
-    - اعتبارسنجی لینک
-    - آپدیت مقدار داخل حافظه برنامه
-    - ذخیره دائمی در فایل .env
-    - rollback در صورت خطا
-    """
+    """Update donation link in memory and persist in .env file with rollback."""
     global DONATION_LINK
 
     async with _env_lock:
@@ -200,91 +174,82 @@ async def update_donation_link(new_link: str):
         DONATION_LINK = new_link
 
         try:
-            # ذخیره دائمی در فایل .env
-            _update_env_keys({
-                "DONATION_LINK": DONATION_LINK
-            })
-
-            logger.info("[CONFIG] لینک حمایت مالی در فایل .env ذخیره شد.")
+            _update_env_keys({"DONATION_LINK": DONATION_LINK})
+            logger.info("[CONFIG] Donation link updated successfully.")
             return True
-
         except Exception as e:
-            # rollback مقدار حافظه در صورت خطای ذخیره فایل
             DONATION_LINK = old_link
-            logger.error(f"[CONFIG] خطا در ذخیره لینک حمایت مالی: {e}")
+            logger.error(f"[CONFIG] Error saving donation link: {e}")
             return False
 
+
 async def add_ads_channel(channel_id: str):
-    """افزودن کانال جدید با حفظ ثبات داده و جلوگیری از Race Condition"""
+    """Add mandatory join channel and persist to .env."""
     async with _env_lock:
         if channel_id in ADS_CHANNELS:
             return False
 
         ADS_CHANNELS.append(channel_id)
-        
+
         try:
             _update_env_keys({"TEL_ADS_CHANNELS": ",".join(ADS_CHANNELS)})
-            logger.info(f"[CONFIG] کانال {channel_id} اضافه شد.")
+            logger.info(f"[CONFIG] Added channel: {channel_id}")
             return True
         except Exception as e:
-            # Rollback: در صورت خطا در فایل، لیست حافظه به حالت قبل برمی‌گردد
             ADS_CHANNELS.remove(channel_id)
-            logger.error(f"[CONFIG] خطا در اضافه کردن کانال (Rollback انجام شد): {e}")
+            logger.error(f"[CONFIG] Error adding channel: {e}")
             return False
 
 
 async def remove_ads_channel(channel_id: str):
-    """حذف کانال با حفظ ثبات داده و جلوگیری از Race Condition"""
+    """Remove mandatory join channel and persist to .env."""
     async with _env_lock:
         if channel_id not in ADS_CHANNELS:
             return False
 
         ADS_CHANNELS.remove(channel_id)
-        
+
         try:
             _update_env_keys({"TEL_ADS_CHANNELS": ",".join(ADS_CHANNELS)})
-            logger.info(f"[CONFIG] کانال {channel_id} حذف شد.")
+            logger.info(f"[CONFIG] Removed channel: {channel_id}")
             return True
         except Exception as e:
-            # Rollback
             ADS_CHANNELS.append(channel_id)
-            logger.error(f"[CONFIG] خطا در حذف کانال (Rollback انجام شد): {e}")
+            logger.error(f"[CONFIG] Error removing channel: {e}")
             return False
 
 
 async def add_admin(admin_id: int):
-    """افزودن ادمین جدید با حفظ ثبات داده و جلوگیری از Race Condition"""
+    """Add administrator and persist to .env."""
     async with _env_lock:
         if admin_id in ADMIN_IDS:
             return False
 
         ADMIN_IDS.append(admin_id)
-        
+
         try:
             _update_env_keys({"TEL_ADMIN_IDS": ",".join(map(str, ADMIN_IDS))})
-            logger.info(f"[CONFIG] ادمین {admin_id} اضافه شد.")
+            logger.info(f"[CONFIG] Administrator added: {admin_id}")
             return True
         except Exception as e:
-            # Rollback
             ADMIN_IDS.remove(admin_id)
-            logger.error(f"[CONFIG] خطا در اضافه کردن ادمین (Rollback انجام شد): {e}")
+            logger.error(f"[CONFIG] Error adding admin: {e}")
             return False
 
 
 async def remove_admin(admin_id: int):
-    """حذف ادمین با حفظ ثبات داده و جلوگیری از Race Condition"""
+    """Remove administrator and persist to .env."""
     async with _env_lock:
         if admin_id not in ADMIN_IDS:
             return False
 
         ADMIN_IDS.remove(admin_id)
-        
+
         try:
             _update_env_keys({"TEL_ADMIN_IDS": ",".join(map(str, ADMIN_IDS))})
-            logger.info(f"[CONFIG] ادمین {admin_id} حذف شد.")
+            logger.info(f"[CONFIG] Administrator removed: {admin_id}")
             return True
         except Exception as e:
-            # Rollback
             ADMIN_IDS.append(admin_id)
-            logger.error(f"[CONFIG] خطا در حذف ادمین (Rollback انجام شد): {e}")
+            logger.error(f"[CONFIG] Error removing admin: {e}")
             return False

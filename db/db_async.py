@@ -12,7 +12,7 @@ DB_NAME = "bot.db"
 async def create_async_connection(
     isolation_level: str = "",
 ) -> aiosqlite.Connection:
-    """ساخت و برگرداندن یک اتصال async جدید به دیتابیس"""
+    """Create and return a new asynchronous SQLite database connection."""
     try:
         logger.debug(f"[DB-ASYNC] Opening connection to {DB_NAME}")
         con = await aiosqlite.connect(DB_NAME, isolation_level=isolation_level)
@@ -32,8 +32,8 @@ async def create_async_connection(
 @asynccontextmanager
 async def get_async_db():
     """
-    Async context manager برای مدیریت خودکار اتصال و تراکنش.
-    استفاده:
+    Asynchronous context manager for automated connection and transaction management.
+    Usage:
         async with get_async_db() as db:
             await db.execute(...)
     """
@@ -70,19 +70,8 @@ async def get_async_db():
 @asynccontextmanager
 async def get_async_db_immediate():
     """
-    Async context manager با IMMEDIATE locking برای عملیات atomic read-then-write.
-
-    چرا لازمه:
-        در get_async_db معمولی، SQLite یک deferred lock می‌گیره.
-        اگر دو coroutine همزمان SELECT کنن و بعد هر دو UPDATE بزنن،
-        ممکنه یک row دو بار پردازش بشه (race condition).
-        با BEGIN IMMEDIATE قبل از SELECT، write-lock فوری گرفته می‌شه
-        و تضمین می‌شه فقط یک coroutine در لحظه این بلوک رو اجرا می‌کنه.
-
-    isolation_level=None => حالت autocommit؛ تراکنش رو دستی مدیریت می‌کنیم
-    تا با BEGIN/COMMIT/ROLLBACK صریح کنترل کامل داشته باشیم.
-
-    استفاده:
+    Asynchronous context manager with BEGIN IMMEDIATE write-lock for atomic operations.
+    Usage:
         async with get_async_db_immediate() as db:
             row = await (await db.execute("SELECT ...")).fetchone()
             await db.execute("UPDATE ...")

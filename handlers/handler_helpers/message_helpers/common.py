@@ -1,6 +1,5 @@
 """
-توابع و دکوریتورهای مشترک بین هندلرها.
-این ماژول برای جلوگیری از تکرار کد (admin_only و get_valid_id) بین چند فایل هندلر ساخته شده.
+Shared utility decorators and ID extraction helpers.
 """
 from functools import wraps
 from pyrogram.types import Message
@@ -8,22 +7,22 @@ from db import model_async
 
 
 def admin_only(func):
-    """دکوریتور برای بررسی اینکه آیا کاربر ادمین هست یا خیر."""
+    """Decorator to verify if caller is an administrator."""
     @wraps(func)
     async def wrapper(message: Message, user_id: int, *args, **kwargs):
         is_admin = await model_async.check_admin(user_id)
         if not is_admin:
-            return  # ادمین نیست، هیچ کاری نکن (یا پیام خطای دسترسی بده)
+            return
         return await func(message, user_id, *args, **kwargs)
     return wrapper
 
 
 async def get_valid_id(message: Message) -> int | None:
     """
-    بررسی و استخراج شناسه عددی:
-    1. انتخاب بومی کاربر (UsersShared)
-    2. انتخاب بومی گروه/چت (ChatShared)
-    3. ارسال دستی متن عددی
+    Extract numeric identifier from:
+    1. UsersShared native picker
+    2. ChatShared native picker
+    3. Manual integer text input
     """
     if getattr(message, "users_shared", None):
         users = message.users_shared.users

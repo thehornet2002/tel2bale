@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 CHARACTERS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 
 def _apply_advanced_warp(image: Image.Image) -> Image.Image:
-    """اعمال اعوجاج و پیچش سینوسی دو محوره بر روی تصویر"""
+    """Apply dual-axis sinusoidal distortion warp to captcha image."""
     width, height = image.size
     distorted = Image.new("RGB", (width, height), (242, 244, 248))
     pixels_in = image.load()
@@ -34,7 +34,7 @@ def _apply_advanced_warp(image: Image.Image) -> Image.Image:
 
 
 def generate_hard_captcha(length: int = 5) -> tuple[str, bytes]:
-    """تولید کد کپچا همراه با تصویر با امنیت بالا (الگوبرداری از Senfi)"""
+    """Generate high-security distorted image captcha code and PNG bytes."""
     code = "".join(random.choices(CHARACTERS, k=length))
     width, height = 260, 95
 

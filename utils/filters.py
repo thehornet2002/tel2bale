@@ -11,14 +11,13 @@ logger = get_logger(__name__)
 
 
 async def is_member_of_channel(client: Client, message: Message) -> bool:
-    """بررسی عضویت کاربر در تمام کانال‌ها — قابل استفاده مستقیم در هندلرها"""
+    """Check membership in all mandatory advertisement channels."""
     if not message.from_user:
         return False
-    
-    # اگر کانال‌های تبلیغی تعریف نشده‌اند، اجازه بدهید
+
     if not ADS_CHANNELS:
         return True
-    
+
     try:
         for channel in ADS_CHANNELS:
             try:
@@ -40,13 +39,11 @@ async def is_member_of_channel(client: Client, message: Message) -> bool:
                 return False
         return True
     except Exception as e:
-        logger.error(f"خطا در بررسی عضویت کانال: {e}")
-        # در صورت خطای نامشخص، رد کنید (محدودیت احتیاطی)
+        logger.error(f"[FILTERS] Channel membership error: {e}")
         return False
 
 
 async def _join_filter_func(_, client: Client, message: Message) -> bool:
-    """wrapper با سیگنچر صحیح برای filters.create"""
     return await is_member_of_channel(client, message)
 
 
@@ -54,10 +51,10 @@ join_filter = filters.create(_join_filter_func)
 
 
 async def is_member_of_channel_cb(client: Client, callback: CallbackQuery) -> bool:
-    """بررسی عضویت کاربر در callback"""
+    """Check channel membership in callback query context."""
     if not ADS_CHANNELS:
         return True
-    
+
     try:
         for channel in ADS_CHANNELS:
             try:
@@ -73,7 +70,7 @@ async def is_member_of_channel_cb(client: Client, callback: CallbackQuery) -> bo
                 return False
         return True
     except Exception as e:
-        logger.error(f"خطا در بررسی عضویت کانال (callback): {e}")
+        logger.error(f"[FILTERS] Channel membership error (callback): {e}")
         return False
 
 
@@ -90,11 +87,7 @@ join_filter_cb = filters.create(_join_filter_cb_func)
 
 
 async def has_user_capacity(tg_id: int) -> bool:
-    """
-    بررسی می‌کند آیا ظرفیت ثبت‌نام کاربر جدید (MAX_USERS) هنوز خالی است یا نه.
-    کاربرانی که از قبل در دیتابیس هستند همیشه مجاز هستند (فقط کاربر جدید محدود می‌شود).
-    MAX_USERS برابر 0 به معنای بدون محدودیت است.
-    """
+    """Verify if new user registration capacity (MAX_USERS) is open."""
     if not MAX_USERS:
         return True
 
@@ -116,7 +109,6 @@ async def _user_limit_filter_func(_, client: Client, message: Message) -> bool:
 
 
 user_limit_filter = filters.create(_user_limit_filter_func)
-
 
 
 async def _whitelist_filter_func(_, client: Client, message: Message) -> bool:
@@ -143,4 +135,3 @@ async def _whitelist_filter_cb_func(_, client: Client, callback: CallbackQuery) 
 
 
 whitelist_filter_cb = filters.create(_whitelist_filter_cb_func)
-

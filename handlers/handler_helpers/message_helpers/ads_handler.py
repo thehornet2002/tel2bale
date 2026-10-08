@@ -1,5 +1,5 @@
 """
-هندلرهای مربوط به کانال‌های جوین اجباری (ads channel): افزودن، حذف و اعتبارسنجی.
+Handlers for mandatory join advertisement channels: add, remove, and resolve.
 """
 import re
 from urllib.parse import urlparse

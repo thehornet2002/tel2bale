@@ -54,7 +54,7 @@ async def send_support_message(message: Message, user_id: int):
         )
         return
 
-    # خواندن دسته انتخاب شده از دیتابیس/ردیس
+    # Extract selected ticket category ID from state
     cat_id = 1
     state = await model_async.get_state(user_id)
     if state.startswith("ticket_waiting_msg_"):

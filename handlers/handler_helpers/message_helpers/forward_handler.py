@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 
 def format_bale_error(error: Exception) -> str:
-    """فرمت کردن خطاهای دریافتی از بله (نیازی به async ندارد)"""
+    """Format error string received from Bale API."""
     text = str(error).lower()
 
     if "unauthorized" in text:
@@ -69,7 +69,7 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
     if not media_obj:
         return await message.reply_text('این نوع پیام پشتیبانی نمی‌شود.')
 
-    # بررسی کپچا قبل از ارسال فایل به بله در صورت فعال بودن
+    # Verify captcha prior to file forwarding if enabled
     if not bypass_captcha and model_async.is_captcha_file_enabled() and not await model_async.check_admin(user_id):
         from handlers.handler_helpers.message_helpers.captcha_handler import issue_captcha, set_pending_file_message
         set_pending_file_message(user_id, message)
@@ -112,7 +112,7 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
 
             s3_connection = await s3_service.create_connection(access_key, secret_key)
 
-            # FIX 1: ذخیره پیام وضعیت برای ویرایش بعدی
+            # Save status message reference for updates
             status_msg = await message.reply_text('درحال دانلود ...')
             file_path = await message.download(in_memory=False)
             object_name = os.path.basename(file_path)
@@ -133,12 +133,12 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
             if message.caption:
                 await bale_bot.send_message(bot_token, bale_id, message.caption)
 
-            return  # ← موفقیت‌آمیز، از تابع خارج می‌شیم
+            return  # Successful: return early
 
         except Exception as e:
             await rollback_quota(user_id, file_size)
             await message.reply_text(f"❌ خطا در فرآیند آپلود: {e}")
-            return  # FIX 2: جلوگیری از Fallthrough به بخش ۳
+            return  # Prevent fallthrough to direct forwarding
 
         finally:
             if file_path and os.path.exists(file_path):
@@ -151,7 +151,7 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
     # 3. Download and Forward Media
     file = None
     try:
-        # FIX 1: ذخیره پیام وضعیت برای ویرایش بعدی
+        # Save status message reference for updates
         status_msg = await message.reply_text('درحال دانلود ...')
         file = await message.download(in_memory=IN_MEMORY)
         if file and IN_MEMORY:

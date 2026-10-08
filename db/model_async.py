@@ -17,10 +17,8 @@ logger = get_logger(__name__)
 
 # =========================
 # Field allowlists
-#
-# هر فیلدی که مستقیم داخل SQL string قرار می‌گیره
-# باید اول در این frozenset ها تأیید بشه.
-# این از SQL injection جلوگیری می‌کنه.
+# Every field placed inside SQL strings must be verified in these frozensets
+# to guarantee protection against SQL injection.
 # =========================
 
 _USER_READABLE_FIELDS: frozenset[str] = frozenset({
@@ -59,7 +57,7 @@ _CAPTCHA_FILE_ENABLED: bool = False
 # =========================
 
 async def create_tables() -> None:
-    """ساخت جداول مورد نیاز در صورت عدم وجود (نسخه کاملاً async)"""
+    """Create all required database tables if they do not exist."""
     async with get_async_db() as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -96,7 +94,7 @@ async def create_tables() -> None:
             )
         """)
 
-        # جدول دسته‌بندی‌های تیکت (الگوبرداری از سیستم Senfi)
+        # Ticket categories table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS ticket_categories (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,7 +110,7 @@ async def create_tables() -> None:
         except Exception:
             pass
 
-        # جدول اصلی تیکت‌های پشتیبانی
+        # Support tickets table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS tickets (
                 id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -138,7 +136,7 @@ async def create_tables() -> None:
         except Exception:
             pass
 
-        # اضافه کردن دسته‌بندی‌های پیش‌فرض
+        # Insert default ticket categories if empty
         cursor = await db.execute("SELECT COUNT(*) AS cnt FROM ticket_categories")
         cat_cnt = (await cursor.fetchone())["cnt"]
         if cat_cnt == 0:
@@ -146,7 +144,7 @@ async def create_tables() -> None:
             for title in defaults:
                 await db.execute("INSERT OR IGNORE INTO ticket_categories (title) VALUES (?)", (title,))
 
-        # جدول نظرسنجی‌ها (پشتیبانی از چندین نظرسنجی هم‌زمان و عنوان)
+        # Multi-polls table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS polls (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,7 +161,7 @@ async def create_tables() -> None:
         except Exception:
             pass
 
-        # جدول آرای نظرسنجی
+        # Poll votes table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS poll_votes (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -195,7 +193,7 @@ async def create_tables() -> None:
 
 
 async def init_cache() -> None:
-    """لود تمام داده‌های پردرخواست به حافظه RAM جهت بهینه‌سازی سرعت و حذف کوئری‌های تکراری"""
+    """Load frequently accessed data into RAM cache to maximize performance."""
     global _WHITELIST_ENABLED, _LIMIT_VOLUME
     _EXISTING_USERS.clear()
     _ADMIN_USERS.clear()
@@ -420,7 +418,7 @@ async def check_ban(tg_id: int) -> bool:
 
 async def set_state(tg_id: int, state: str) -> bool:
     _STATE_CACHE[tg_id] = state
-    # در صورت وجود ردیس، اول در ردیس ذخیره شود
+    # Save to Redis first if available
     if is_redis_available():
         await redis_set_state(tg_id, state)
 
@@ -431,18 +429,18 @@ async def set_state(tg_id: int, state: str) -> bool:
 
 
 async def get_state(tg_id: int) -> str:
-    # 1. اگر در ردیس مقدار بود، اولویت با ردیس است
+    # 1. Check Redis first
     if is_redis_available():
         r_state = await redis_get_state(tg_id)
         if r_state is not None:
             _STATE_CACHE[tg_id] = r_state
             return r_state
 
-    # 2. در صورت نبود ردیس، کش RAM
+    # 2. Check in-memory RAM cache
     if tg_id in _STATE_CACHE:
         return _STATE_CACHE[tg_id]
 
-    # 3. دیتابیس SQLite
+    # 3. Fallback to SQLite persistent database
     state = await _get_user_field(tg_id, "state", "home")
     _STATE_CACHE[tg_id] = state
     if is_redis_available():
@@ -606,8 +604,7 @@ async def release_download_quota(tg_id: int, file_size_bytes: int | None) -> boo
 
 
 async def set_limit_download_all(limit: float) -> None:
-    # این تابع همه کاربران رو آپدیت می‌کنه (بدون WHERE)،
-    # پس از _update_user_field که per-user است نمی‌شه استفاده کرد.
+    # Update all users globally (without WHERE clause)
     async with get_async_db() as db:
         await db.execute("""
             UPDATE users
@@ -731,7 +728,7 @@ async def set_s3_endpoint(tg_id: int, s3_endpoint: str) -> bool:
     return await _update_user_field(tg_id, "s3_endpoint", s3_endpoint)
 
 # =========================
-# Support & Ticket System (سیستم پیشرفته تیکتینگ الگوبرداری از Senfi)
+# Support & Ticket System
 # =========================
 
 STATUS_UNREAD = "خوانده نشده"
@@ -863,7 +860,7 @@ async def reset_support_message_count(tg_id: int) -> bool:
 
 
 async def save_support_message(tg_id: int, group_message_id: int) -> bool:
-    """ذخیره پیام ارسالی کاربر به گروه پشتیبانی برای تطبیق بعدی با ریپلای ادمین"""
+    """Save forwarded support message ID for response mapping."""
     async with get_async_db() as db:
         await db.execute("""
             INSERT INTO support_messages (telegram_id, group_message_id)
@@ -873,7 +870,7 @@ async def save_support_message(tg_id: int, group_message_id: int) -> bool:
 
 
 async def get_telegram_id_by_group_message(group_message_id: int) -> int | None:
-    # ابتدا در جدول تیکت‌ها جستجو کن
+    # Check tickets table first
     ticket = await get_ticket_by_group_message_id(group_message_id)
     if ticket:
         return ticket["telegram_id"]
@@ -906,7 +903,7 @@ async def get_tickets_paged(
     page: int = 1,
     per_page: int = 10,
 ) -> tuple[list[dict], int, int]:
-    """دریافت لیست تیکت‌ها با صفحه‌بندی برای پنل ادمین (مانند Senfi_bot)"""
+    """Fetch paginated tickets list for administration panel."""
     import math
     where_clauses = []
     params: list[Any] = []
@@ -963,7 +960,7 @@ async def get_ticket_status_counts() -> dict[str, int]:
 
 
 # =========================
-# Polls & Surveys (سیستم نظرسنجی پیشرفته چندتایی)
+# Polls & Surveys
 # =========================
 
 async def create_poll(question: str, options: list[str], title: str = "") -> int:
@@ -1115,7 +1112,7 @@ async def is_active_user(tg_id: int) -> bool:
 
 
 # =========================
-# Whitelist (لیست سفید)
+# Whitelist System
 # =========================
 
 def is_whitelist_enabled() -> bool:
@@ -1127,7 +1124,7 @@ async def set_whitelist_enabled(enabled: bool) -> bool:
     _WHITELIST_ENABLED = enabled
     await set_setting("whitelist_enabled", str(enabled).lower())
     if enabled:
-        # درصورت فعال بودن whitelist باید ادمین به آن اضافه گردد
+        # When whitelist is enabled, ensure administrators are included
         admin_ids = set(_ADMIN_USERS).union(config.ADMIN_IDS)
         for admin_id in admin_ids:
             await add_to_whitelist(admin_id)
@@ -1166,7 +1163,7 @@ def get_whitelist_users() -> list[int]:
 
 
 # =========================
-# Captcha Settings (تنظیمات کپچا)
+# Captcha Settings
 # =========================
 
 def is_captcha_ticket_enabled() -> bool:

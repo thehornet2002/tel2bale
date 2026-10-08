@@ -195,7 +195,7 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
         await callback.answer()
         return
 
-    # کنترل سخت‌گیرانه دسترسی: مسدودسازی کلیه درخواست‌های ادمین برای کاربران عادی
+    # Strict access control: block non-admin execution of management callbacks
     if callback.data in ADMIN_CALLBACK_NAMES or callback.data.startswith(("adm_", "admin_")):
         if not await check_admin(user_id):
             await callback.answer("⛔ دسترسی غیرمجاز.", show_alert=True)

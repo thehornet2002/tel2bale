@@ -1,117 +1,139 @@
-# 🚀 TEL2BALE — ربات انتقال پیام از تلگرام به بله
+# 🚀 TEL2BALE — Telegram to Bale Bridge Bot
 
 <div align="center">
 
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Redis](https://img.shields.io/badge/Redis-Supported-DC382D?logo=redis&logoColor=white)](https://redis.io/)
 [![Status](https://img.shields.io/badge/Status-Active-brightgreen)](https://github.com/thehornet2002/tel2bale)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-**Telegram to Bale Bridge Bot**
+**A high-performance, asynchronous bridge bot transferring messages and media from Telegram to Bale messenger.**
 
 </div>
 
 ---
 
-## 📌 معرفی پروژه
+## 📌 Overview
 
-**TEL2BALE** یک ربات پل ارتباطی امن، غیرمسدودکننده و کاملاً Async است که پیام‌ها و فایل‌ها را از تلگرام دریافت کرده و به پیام‌رسان **بله** ارسال می‌کند.
+**TEL2BALE** is a fully asynchronous, non-blocking bridge bot designed to forward messages, media, and documents from **Telegram** to the **Bale** messenger.
 
-این پروژه مناسب موقعیت‌هایی است که دسترسی مستقیم به تلگرام با محدودیت مواجه است؛ کاربر رسانه‌ها، فایل‌ها یا متن‌های خود را برای ربات تلگرام ارسال می‌کند و ربات با مدیریت خودکار ترافیک، آن را به مقصد مشخص در بله می‌فرستد.
+It is particularly valuable in environments where direct access to Telegram is restricted or limited. Users can send their texts, photos, videos, voices, or large files to the Telegram bot, which securely and automatically delivers them to the configured Bale destination.
 
-### رفتار انتقال رسانه‌ها:
-- فایل‌های زیر مقدار `TEL_MAX_FILE_SIZE` مستقیماً به پیام‌رسان بله ارسال می‌شوند.
-- فایل‌های بزرگ‌تر روی **Arvan Storage (سازگار با S3)** آپلود شده و لینک موقت دانلود آن‌ها به بله ارسال می‌شود.
-- سهمیه و حجم مصرفی کاربران با سیستم Quota اختصاصی و تراکنش‌های Atomic کنترل می‌شود.
-- مدیریت دیتابیس کاملاً غیرمسدودکننده (Async با `aiosqlite`) است و داده‌های پرتکرار در RAM کش می‌شوند.
-- مدیریت وضعیت (State) کاربران با اتصال مستقیم به Redis برای پرفورمنس بسیار بالا و بدون درگیری I/O دیسک (همراه با Fallback هوشمند).
-
----
-
-## ✨ قابلیت‌ها
-
-- **انتقال انواع پیام**: متن، عکس، ویدئو، ویس، موسیقی، فایل (Document)، گیف (Animation)، لوکیشن و مخاطب.
-- **سیستم تیکتینگ و پشتیبانی پیشرفته (مشابه Senfi)**: امکان ارسال تیکت با انتخاب موضوع دسته‌بندی، پیگیری تیکت‌ها و وضعیت آن‌ها توسط کاربر (`تیکت‌های من`)، مشاهده، فیلتر و پاسخ‌دهی کامل توسط ادمین در پنل مدیریت بدون نیاز به گروه پشتیبانی.
-- **سیستم نظرسنجی پیشرفته (Polls)**: ایجاد نظرسنجی با گزینه‌های دلخواه توسط ادمین، ثبت رأی یکتای کاربران و نمایش درصد و نمودار بصری نتایج.
-- **یکپارچگی با Redis**: ذخیره وضعیت (State) کاربران در Redis برای سرعت فوق‌العاده در پردازش پیام‌ها و حفظ ماندگاری وضعیت.
-- **پشتیبانی از فایل‌های سنگین**: یکپارچه با ذخیره‌ساز ابری آروان (S3) و پاکسازی خودکار پس از آپلود.
-- **سیستم مدیریت لیست سفید (Whitelist)**: امکان محدودسازی دسترسی ربات فقط به کاربران مجاز با کلید فعال‌سازی/غیرفعال‌سازی سریع.
-- **پنل مدیریت کیبوردی (Reply Keyboard)**: رابط کاربری یکپارچه بدون نیاز به تایپ دستی با دکمه‌های Native تلگرام برای انتخاب مستقیم کاربر و گروه.
-- **سیستم کش درون‌حافظه‌ای (In-Memory RAM Cache)**: پاسخ‌دهی بلادرنگ و به صفر رساندن بار کوئری‌های تکراری دیتابیس.
-- **کنترل سقف کاربران**: قابلیت تعیین سقف کل کاربران ثبت‌نامی و سقف کاربران فعال.
-- **عضویت اجباری (Join اجباری)**: بررسی عضویت کاربران در کانال‌های دلخواه با لینک شیشه‌ای و بررسی خودکار.
-- **سامانه امنیتی کپچا سه‌گانه**: امکان فعال یا غیرفعال‌سازی تفکیک‌شده کد امنیتی ضداسپم برای تیکت‌ها، نظرسنجی‌ها و ارسال فایل‌ها توسط ادمین.
-- **پشتیبان‌گیری آنلاین**: ارسال مستقیم فایل بک‌آپ دیتابیس در چت تلگرام برای ادمین.
-- **داکریزه کامل**: دارای `Dockerfile` بهینه‌شده و `docker-compose.yml` آماده اجرا با Volume پایدار.
+### Media Forwarding Workflow:
+- Files smaller than or equal to `TEL_MAX_FILE_SIZE` (default 20MB) are directly uploaded and sent to Bale API.
+- Files exceeding this threshold are uploaded to **Arvan Cloud S3-compatible object storage**, and an expiring presigned download link is sent to the Bale destination.
+- User bandwidth is strictly managed through an atomic SQLite/database quota reservation system.
+- Database access is non-blocking (`aiosqlite`) with in-memory RAM caching and optional **Redis** state storage for maximum throughput.
 
 ---
 
-## 📋 پیش‌نیازها و توکن‌ها
+## ✨ Features
 
-1. **Telegram API ID & API Hash**: دریافت از [my.telegram.org](https://my.telegram.org)
-2. **Telegram Bot Token**: دریافت از [@BotFather](https://t.me/BotFather)
-3. **Bale Bot Token**: ساخت ربات در بله از طریق بازوی بات‌فادر بله و دریافت توکن
-4. **Arvan Cloud S3 (اختیاری برای فایل‌های بزرگ)**: کلیدهای Access Key، Secret Key و Endpoint آروان
+- **Rich Media Forwarding**: Supports text, photos, videos, audio, voice messages, documents, animations (GIFs), locations, and contacts.
+- **Large File S3 Storage**: Streaming upload with automatic unique UUID naming, temporary presigned links, bucket capacity recovery, and immediate disk cleanup.
+- **Redis State Management**: High-speed user session state caching with automatic fallback to RAM and SQLite.
+- **Advanced Ticketing System (Senfi-style)**:
+  - Custom categories with normal or anonymous modes.
+  - Dedicated user ticket view and history (`My Tickets`).
+  - Native admin management panel with status filters (Pending, Answered, All), pagination, and direct in-bot replies.
+- **Multi-Poll & Survey System**:
+  - Create and manage multiple active polls with custom questions and choices.
+  - One-vote-per-user enforcement with live percentage and visual bar charts.
+- **3-Way Security Captcha Challenge**:
+  - Independent admin toggles for Ticket submission, Poll voting, and File forwarding.
+  - Advanced distorted sinusoidal image captcha with automatic timeout and refresh limit.
+- **Admin Control Panel**:
+  - Native Reply Keyboard buttons with Telegram user/chat pickers.
+  - Whitelist mode toggle, ban/unban by Telegram ID or Bale ID.
+  - Global and per-user download volume quotas.
+  - Registration limits (total users and active users capacity).
+  - Mandatory channel join enforcement with public/private link resolution.
+  - Database backup file export directly inside Telegram chat.
+  - Live donation link customization.
+- **Containerized & Automated**: Production-ready `Dockerfile`, `docker-compose.yml`, and one-line setup scripts.
 
 ---
 
-## 🚀 روش‌های نصب و راه‌اندازی
+## 📋 Prerequisites & Tokens
 
-شما می‌توانید ربات را با **Docker** یا **بدون Docker (به‌صورت Native روی سرور لینوکس یا ویندوز)** نصب و اجرا کنید.
+1. **Telegram API ID & API Hash**: Obtain from [my.telegram.org](https://my.telegram.org).
+2. **Telegram Bot Token**: Create a bot via [@BotFather](https://t.me/BotFather) on Telegram.
+3. **Bale Bot Token**: Create a bot via Bale's BotFather and obtain the token.
+4. **Arvan Cloud S3 (Optional for files > 20MB)**: S3 Access Key, Secret Key, and Endpoint URL.
 
 ---
 
-### روش ۱: راه‌اندازی با Docker و Docker Compose (پیشنهادی)
+## 🚀 Installation & Deployment Methods
 
-ساده‌ترین روش استقرار بدون درگیری با نصب پکیج‌های پایتون:
+You can deploy the bot using **Docker** (recommended) or **Native Linux/Windows** environments.
+
+---
+
+### Method 1: Automated 1-Line Docker Deployment (Fastest) 🐳
+
+If your Linux server does not have Docker or Docker Compose installed yet, this script will automatically install Docker Engine, download the source code, configure `.env`, and start the containers:
 
 ```bash
-# ۱. دریافت سورس پروژه
+bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup_docker.sh)
+```
+
+If not logged in as root:
+```bash
+sudo -i
+bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup_docker.sh)
+```
+
+---
+
+### Method 2: Manual Docker Compose
+
+If Docker and Docker Compose are already installed on your server:
+
+```bash
+# 1. Clone repository
 git clone https://github.com/thehornet2002/tel2bale.git
 cd tel2bale
 
-# ۲. ساخت و تنظیم فایل .env
+# 2. Configure environment file
 cp example.env .env
 nano .env
 
-# ۳. بیلد و اجرا در پس‌زمینه
+# 3. Build and run in background
 docker compose up -d --build
 ```
 
-**دستورات مدیریت کانتینر:**
+**Helpful Container Management Commands:**
 ```bash
-docker compose logs -f       # مشاهده لاگ‌های زنده
-docker compose restart       # ری‌استارت ربات
-docker compose down          # توقف و بستن کانتینر
+docker compose logs -f       # View live logs
+docker compose ps            # Check container status
+docker compose restart       # Restart bot container
+docker compose down          # Stop containers
 ```
+
+Persistent volumes for `bot.db`, `logs`, `backups`, and `downloads` are mapped to the host directory automatically.
 
 ---
 
-### روش ۲: نصب خودکار بدون داکر روی لینوکس (اسکریپت One-Line)
+### Method 3: Automated 1-Line Native Linux Setup (Without Docker)
 
-این اسکریپت به‌صورت خودکار پایتون، ابزارهای ساخت، کتابخانه‌ها، فایل `.env` و سرویس systemd را پیکربندی می‌کند:
+Installs system dependencies, Python virtual environment, dependencies, `.env` file, and configures a `systemd` background service:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup.sh)
 ```
 
-اگر با کاربر غیر root وارد شده‌اید:
-```bash
-sudo -i
-bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup.sh)
-```
-
 ---
 
-### روش ۳: نصب دستی بدون داکر روی لینوکس (Native + Systemd)
+### Method 4: Manual Native Linux Setup (Systemd Service)
 
-#### ۱. نصب وابستگی‌های سیستمی
+#### 1. Install System Packages
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-venv python3-dev build-essential libjpeg-dev zlib1g-dev git
 ```
 
-#### ۲. دریافت پروژه و ساخت محیط مجازی
+#### 2. Clone and Setup Virtual Environment
 ```bash
 git clone https://github.com/thehornet2002/tel2bale.git
 cd tel2bale
@@ -123,24 +145,24 @@ pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 ```
 
-#### ۳. تنظیم فایل پیکربندی
+#### 3. Configure Environment Variables
 ```bash
 cp example.env .env
 nano .env
 ```
 
-#### ۴. تست اجرای ربات
+#### 4. Test Run
 ```bash
 python main.py
 ```
 
-#### ۵. اجرای دائمی در پس‌زمینه با سرویس Systemd
-یک فایل سرویس در مسیر `/etc/systemd/system/tel2bale.service` بسازید:
+#### 5. Configure Systemd Service
+Create service file `/etc/systemd/system/tel2bale.service`:
 ```bash
 sudo nano /etc/systemd/system/tel2bale.service
 ```
 
-محتوای زیر را در آن قرار دهید (مسیر `/root/tel2bale` را با مسیر پوشه خود تطبیق دهید):
+Paste configuration (adjust `/root/tel2bale` path if necessary):
 ```ini
 [Unit]
 Description=Tel2Bale Bridge Bot Daemon
@@ -158,24 +180,24 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-فعال‌سازی و شروع سرویس:
+Enable and start:
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now tel2bale
 ```
 
-دستورات مدیریت سرویس:
+**Service Commands:**
 ```bash
-sudo systemctl status tel2bale     # بررسی وضعیت سرویس
-sudo systemctl restart tel2bale    # ری‌استارت سرویس
-sudo journalctl -u tel2bale -f     # مشاهده لاگ زنده
+sudo systemctl status tel2bale     # Service status
+sudo systemctl restart tel2bale    # Restart service
+sudo journalctl -u tel2bale -f     # Live journal logs
 ```
 
 ---
 
-### روش ۴: اجرا در ویندوز (محیط تست و توسعه محلی)
+### Method 5: Windows (Local Testing & Development)
 
-در PowerShell:
+Run inside PowerShell:
 ```powershell
 git clone https://github.com/thehornet2002/tel2bale.git
 cd tel2bale
@@ -194,153 +216,149 @@ python main.py
 
 ---
 
-## ⚙️ متغیرهای محیطی (`.env`)
+## ⚙️ Environment Variables (`.env`)
 
 ```env
-# تنظیمات اصلی تلگرام
+# Telegram Bot Configuration
 TEL_API_ID=1234567
 TEL_API_HASH=abcdef0123456789abcdef0123456789
 TEL_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
 TEL_ADMIN_IDS=123456789,987654321
 
-# پیام‌های خوش‌آمدگویی و راهنما
+# Bot Welcome and Help Messages
 TEL_START_TXT=به ربات انتقال پیام تلگرام به بله خوش آمدید.
 TEL_HELP_TXT=ابتدا شناسه بله و توکن ربات بله خود را تنظیم کنید، سپس پیام‌ها را ارسال کنید.
 
-# لیست سفید (Whitelist)
+# Whitelist Configuration
 TEL_WHITELIST_ENABLED=False
 TEL_WHITELIST_USERS=123456789,111222333
 
-# محدودیت‌ها و کانال‌ها
+# File Limits & Quota
 TEL_ADS_CHANNELS=
 TEL_MAX_FILE_SIZE=20
 TEL_IN_MEMORY=False
 DONATION_LINK=https://daramet.com/Hornet2002
 SUPPORT_MESSAGE_LIMIT=5
+
+# Registration & Capacity Limits (0 = Unlimited)
 MAX_USERS=0
 MAX_ACTIVE_USERS=0
 
-# تنظیمات ردیس (اختیاری جهت افزایش سرعت وضعیت کاربران)
+# Redis Configuration (Optional for state acceleration)
 REDIS_URL=redis://127.0.0.1:6379/0
 
-# پروکسی تلگرام (اختیاری)
+# Optional Telegram Proxy
 TEL_PROXY_SCHEME=
 TEL_PROXY_HOST=
 TEL_PROXY_PORT=
 
-# پروکسی بله (اختیاری)
+# Optional Bale Proxy
 BALE_PROXY=
 ```
 
-### جدول راهنمای متغیرها
+### Configuration Parameters
 
-| متغیر | مقدار پیش‌فرض | توضیحات |
+| Variable | Default | Description |
 |---|---|---|
-| `TEL_API_ID` | اجباری | شناسه کاربری API تلگرام |
-| `TEL_API_HASH` | اجباری | رشته هش API تلگرام |
-| `TEL_BOT_TOKEN` | اجباری | توکن ربات تلگرام |
-| `TEL_ADMIN_IDS` | اجباری | شناسه‌های عددی ادمین‌های اصلی (جدا شده با کاما) |
-| `TEL_WHITELIST_ENABLED` | `False` | فعال‌سازی حالت لیست سفید در زمان استارت |
-| `TEL_WHITELIST_USERS` | - | لیست اولیه شناسه‌های مجاز در لیست سفید |
-| `TEL_MAX_FILE_SIZE` | `20` | حداکثر حجم فایل برای ارسال مستقیم (مگابایت) |
-| `MAX_USERS` | `0` | سقف کل کاربران ثبت‌نامی (0 = نامحدود) |
-| `MAX_ACTIVE_USERS` | `0` | سقف کاربران دارای توکن/شناسه بله فعال (0 = نامحدود) |
-| `SUPPORT_MESSAGE_LIMIT` | `5` | سقف تیکت‌های در انتظار پاسخ هر کاربر |
-| `REDIS_URL` | - | آدرس اتصال به ردیس (مثال: `redis://127.0.0.1:6379/0`) |
-| `BALE_PROXY` | - | آدرس پروکسی برای دسترسی سرور به API بله |
+| `TEL_API_ID` | Required | Telegram API ID from my.telegram.org |
+| `TEL_API_HASH` | Required | Telegram API Hash from my.telegram.org |
+| `TEL_BOT_TOKEN` | Required | Telegram Bot Token from @BotFather |
+| `TEL_ADMIN_IDS` | Required | Comma-separated Telegram user IDs of administrators |
+| `TEL_WHITELIST_ENABLED` | `False` | Enable bot access whitelist mode on startup |
+| `TEL_WHITELIST_USERS` | - | Seed list of allowed Telegram user IDs |
+| `TEL_MAX_FILE_SIZE` | `20` | Max file size in MB for direct Bale upload |
+| `MAX_USERS` | `0` | Max total registered users allowed (0 = unlimited) |
+| `MAX_ACTIVE_USERS` | `0` | Max users with Bale ID/token allowed (0 = unlimited) |
+| `SUPPORT_MESSAGE_LIMIT` | `5` | Maximum pending unanswered tickets allowed per user |
+| `REDIS_URL` | - | Optional Redis connection string (e.g. `redis://127.0.0.1:6379/0`) |
+| `DONATION_LINK` | - | Custom donation URL displayed on start keyboard |
+| `BALE_PROXY` | - | Optional proxy URL for Bale API communication |
 
 ---
 
-## 📂 ساختار فایل‌های پروژه
+## 📂 Project Directory Structure
 
 ```text
 tel2bale/
-├── Dockerfile                   # ایمیج بهینه‌شده مبتنی بر python:3.12-slim
-├── docker-compose.yml           # کانفیگ چندکانتینری داکر همراه با Volumeها
-├── main.py                      # نقطه شروع اجرای بات، ثبت کامندها و کلاینت
-├── config.py                    # مدیریت متغیرهای محیطی با قفل Async و اعتبارسنجی
-├── requirements.txt             # نیازمندی‌های پایتون
-├── example.env                  # نمونه متغیرهای کانفیگ
+├── Dockerfile                   # Optimized python:3.12-slim container image
+├── docker-compose.yml           # Multi-container Compose configuration with volumes
+├── setup_docker.sh              # 1-line automated Docker deployment script
+├── setup.sh                     # 1-line automated native Linux systemd setup script
+├── main.py                      # Bot entry point, startup procedures, and command setup
+├── config.py                    # Environment management with async locking and validation
+├── requirements.txt             # Python package dependencies
+├── example.env                  # Template environment variables
 │
 ├── db/
-│   ├── db_async.py              # مدیریت نشست‌ها و اتصالات غیرمسدودکننده SQLite
-│   ├── model_async.py           # مدل‌های داده، کش رم و کوئری‌های Async
-│   └── backup.py                # ماژول تولید فایل پشتیبان امن از دیتابیس
+│   ├── db_async.py              # Asynchronous SQLite connection manager
+│   ├── model_async.py           # Core database models, schema initialization, and queries
+│   ├── redis_client.py          # Asynchronous Redis client with automatic RAM fallback
+│   └── backup.py                # Database backup utility
 │
 ├── handlers/
-│   ├── commands.py              # هندلرهای کامندهای /start ، /help و /panel
-│   ├── callback.py              # هندلرهای دکمه‌های Inline
-│   ├── messages.py              # مدیریت پیام‌های متنی، حالت‌های ادمین و فوروارد
+│   ├── commands.py              # Handlers for /start, /help, and /panel commands
+│   ├── callback.py              # Inline callback query router with strict access control
+│   ├── messages.py              # Main message dispatcher and input state processor
 │   └── handler_helpers/
 │       ├── command_helper.py
 │       ├── callback_helpers/
 │       │   ├── navigation_handler.py
 │       │   ├── user_handler.py
-│       │   └── admin/       # کنترلرهای بخش‌های مختلف پنل ادمین
+│       │   └── admin/       # Management controllers (tickets, polls, whitelist, limits, etc.)
 │       └── message_helpers/
 │           ├── admin_handler.py
 │           ├── forward_handler.py
-│           ├── common.py
-│           └── ...
+│           ├── captcha_handler.py
+│           └── user_handler.py
 │
 ├── services/
-│   ├── bale_service.py          # ارتباط با API بله با مکانیسم Retry و هندل هوشمند بایت‌ها
-│   ├── s3_service.py            # ارتباط با باکت S3 آروان و تولید لینک موقت
-│   └── quota_service.py         # مدیریت همزمانی سهمیه دانلود
+│   ├── bale_service.py          # Bale API client with retry mechanism and binary handling
+│   ├── s3_service.py            # Arvan Cloud S3 integration and presigned URL generation
+│   ├── quota_service.py         # Atomic download quota verification and rollback
+│   └── captcha_service.py       # High-security sinusoidal distorted image captcha engine
 │
 ├── utils/
-│   ├── filters.py               # فیلترهای سفارشی تلگرام (جوئین اجباری، ظرفیت، لیست سفید)
-│   ├── keyboards.py             # کیبوردهای شیشه‌ای و کیبوردهای Reply ادمین
-│   ├── logger.py                # لاگر چرخشی
-│   └── parser.py                # اعتبارسنجی لینک‌ها و آدرس‌های ورودی
+│   ├── filters.py               # Custom Pyrogram filters (whitelist, user capacity, join ads)
+│   ├── keyboards.py             # Inline and Reply keyboard builders
+│   ├── logger.py                # Rotating log handler
+│   └── parser.py                # URL validation with anti-SSRF protections
 │
 └── tests/
-    └── test_self_check.py       # تست‌های داخلی و اعتبارسنجی جامع پروژه
+    └── test_self_check.py       # Comprehensive internal test and security validation suite
 ```
 
 ---
 
-## 🛠️ قابلیت‌های پنل مدیریت
+## 🛠️ Admin Panel Capabilities
 
-ادمین‌های ربات می‌توانند با ارسال دستور `/admin` یا `/panel` به پنل مدیریت با کلیدهای راحت دسترسی پیدا کنند:
+Administrators can access the management panel at any time by sending `/admin` or `/panel` in private chat:
 
-- 💾 **دریافت دیتابیس**: ارسال مستقیم فایل دیتابیس در چت تلگرام.
-- 🎫 **تیکت‌های پشتیبانی**: مدیریت و مشاهده لیست تیکت‌ها و ارسال پاسخ مستقیم به کاربران بدون نیاز به گروه.
-- 🗂 **موضوعات تیکت**: افزودن موضوع جدید (عادی یا ناشناس) و حذف/آرشیو دسته‌بندی‌ها.
-- 📊 **مدیریت نظرسنجی‌ها**: ایجاد نظرسنجی‌های جدید با گزینه‌های متعدد، فعال/بستن و مشاهده زنده نتایج.
-- 🔐 **تنظیمات کپچا**: امکان فعال یا غیرفعال‌سازی هوشمند کد امنیتی برای تیکت‌ها، نظرسنجی‌ها و ارسال فایل.
-- 🛡️ **مدیریت لیست سفید (Whitelist)**: افزودن، حذف، مشاهده اعضا و تغییر وضعیت فعال/غیرفعال بودن ربات.
-- 🚫 **مسدودسازی (بن/آنبن)**: قابلیت مسدود کردن با آیدی عددی تلگرام یا آیدی بله (با دکمه مستقیم انتخاب کاربر).
-- ➕/➖ **مدیریت ادمین‌ها**: ارتقای کاربر به ادمین یا سلب دسترسی با ذخیره‌سازی دائمی.
-- 🌐/👤 **تنظیم محدودیت حجم**: اعمال سقف دانلود روی تمام کاربران یا یک کاربر مشخص (گیگابایت).
-- 👥/🟢 **سقف کاربران کل و فعال**: کنترل دقیق ظرفیت ورودی به ربات.
-- 📢/✉️ **ارسال پیام**: ارسال پیام همگانی (Broadcast) یا ارسال پیام اختصاصی به یک کاربر.
-- 🔗/❌ **مدیریت عضویت اجباری**: تنظیم و حذف کانال‌های عضویت اجباری تلگرام.
-- ☕ **تغییر لینک حمایت مالی**: تغییر آدرس لینک دونیت به صورت زنده.
+- 💾 **Database Backup**: Generates an SQLite database backup file and delivers it in Telegram chat.
+- 🎫 **Support Tickets**: Browse tickets filtered by status (Pending, Answered, All), view details, and reply directly.
+- 🗂 **Ticket Categories**: Add categories (Normal or Anonymous modes) and archive/delete them.
+- 📊 **Polls Management**: Create surveys with custom questions and choices, open/close status, and inspect results.
+- 🔐 **Captcha Settings**: Toggle anti-spam image captchas individually for Tickets, Polls, and File uploads.
+- 🛡️ **Whitelist System**: Restrict bot usage to approved users, add/remove IDs, or toggle whitelist enforcement.
+- 🚫 **Ban & Unban**: Block users by Telegram ID or Bale ID using native user picker buttons.
+- ➕/➖ **Administrator Management**: Promote or demote admins with persistent `.env` updating.
+- 🌐/👤 **Bandwidth Quotas**: Set global or per-user download thresholds (in GB).
+- 👥/🟢 **User Limits**: Restrict total registered users or active users with configured Bale tokens.
+- 📢/✉️ **Broadcasting**: Send broadcast messages to all users or direct messages to a specific user.
+- 🔗/❌ **Mandatory Channel Join**: Add and remove required Telegram channel subscriptions.
+- ☕ **Donation Link**: Update the donation link live from the bot interface.
 
 ---
 
-## 🧪 تست و اعتبارسنجی
+## 🧪 Testing & Verification
 
-پروژه دارای سوئیت تست خودکار داخلی است که بخش‌های حساس، اعتبارسنجی URLها، قوانین دیتابیس، سیستم Whitelist و فیلترها را بررسی می‌کند:
+The project includes an integrated verification test covering URL parsing, anti-SSRF checks, quota reservation, database transactions, whitelist rules, Redis connectivity, and captcha generation:
 
 ```bash
-# اجرای خودکار تست‌ها در محیط مجازی
 python tests/test_self_check.py
 ```
 
 ---
 
-## 🤝 مشارکت
+## 📜 License
 
-از پیشنهادات و Pull Requestها استقبال می‌شود:
-1. مخزن را Fork کنید.
-2. برنچ جدید بسازید (`git checkout -b feature/awesome-feature`).
-3. تغییرات خود را Commit کنید (`git commit -m "feat: add awesome feature"`).
-4. برنچ را Push کنید و یک PR ثبت کنید.
-
----
-
-## 📜 لایسنس
-
-این پروژه تحت لایسنس **[MIT](LICENSE)** منتشر شده است.
+This project is licensed under the **[MIT License](LICENSE)**.

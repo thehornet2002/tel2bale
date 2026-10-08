@@ -174,7 +174,7 @@ async def handle_input(client: Client, message: Message) -> None:
     text = (message.text or "").strip()
     state = await get_state(user_id)
 
-    # بررسی لغو عملیات / بازگشت
+    # Check for cancel or back commands
     if text in CANCEL_WORDS:
         is_admin = await check_admin(user_id)
         if is_admin:
@@ -192,7 +192,7 @@ async def handle_input(client: Client, message: Message) -> None:
         )
         return
 
-    # پردازش دکمه‌های پنل مدیریت (ReplyKeyboardMarkup) منحصراً برای ادمین
+    # Process admin ReplyKeyboardMarkup actions exclusively for authorized administrators
     is_admin = await check_admin(user_id)
     if is_admin and text:
         admin_actions = {
