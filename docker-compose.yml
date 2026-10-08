@@ -1,8 +1,26 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: tel2bale_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - ./redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
   bot:
     build: .
     container_name: tel2bale
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     env_file:
       - .env
     volumes:

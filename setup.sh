@@ -179,6 +179,14 @@ fi
 echo -e "${GREEN}✓ Build tools installed${NC}"
 
 # ==========================================
+# 4.5. Install and Start Redis Server
+# ==========================================
+echo -e "\n${YELLOW}Step 4.5: Installing and starting Redis Server...${NC}"
+apt-get install -y redis-server 2>/dev/null || apt-get install -y redis 2>/dev/null || true
+systemctl enable --now redis-server 2>/dev/null || systemctl enable --now redis 2>/dev/null || true
+echo -e "${GREEN}✓ Redis server installed and active${NC}"
+
+# ==========================================
 # 5. Install Python Dependencies
 # ==========================================
 echo -e "\n${YELLOW}Step 5: Installing Python dependencies...${NC}"
@@ -274,8 +282,9 @@ if ! [[ "$INPUT_SUPPORT_LIMIT" =~ ^[0-9]+$ ]]; then
 fi
 
 echo ""
-echo -e "${YELLOW}--- Redis Configuration (Optional) ---${NC}"
-read -p "Enter REDIS_URL (e.g. redis://127.0.0.1:6379/0) [Press enter to skip]: " INPUT_REDIS_URL
+echo -e "${YELLOW}--- Redis Configuration (Mandatory) ---${NC}"
+read -p "Enter REDIS_URL [Default: redis://127.0.0.1:6379/0]: " INPUT_REDIS_URL
+INPUT_REDIS_URL=${INPUT_REDIS_URL:-redis://127.0.0.1:6379/0}
 
 cat <<EOF > .env
 TEL_API_ID=$INPUT_API_ID

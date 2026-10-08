@@ -50,6 +50,21 @@ else
     systemctl start docker 2>/dev/null || true
 fi
 
+# Configure Docker daemon DNS to avoid container build DNS failures
+mkdir -p /etc/docker
+if [ ! -f /etc/docker/daemon.json ]; then
+    echo '{"dns": ["8.8.8.8", "1.1.1.1"]}' > /etc/docker/daemon.json
+    systemctl restart docker 2>/dev/null || true
+elif ! grep -q '"dns"' /etc/docker/daemon.json; then
+    tmp=$(mktemp)
+    if jq '. + {"dns": ["8.8.8.8", "1.1.1.1"]}' /etc/docker/daemon.json > "$tmp" 2>/dev/null; then
+        mv "$tmp" /etc/docker/daemon.json
+        systemctl restart docker 2>/dev/null || true
+    else
+        rm -f "$tmp"
+    fi
+fi
+
 # Verify Docker Compose (v2 plugin or binary)
 DOCKER_COMPOSE_CMD=""
 if docker compose version &>/dev/null; then
@@ -78,17 +93,20 @@ echo -e "${GREEN}✓ Docker Compose ready ($($DOCKER_COMPOSE_CMD version | head 
 # 3. Clone or pull repository
 echo -e "\n${YELLOW}Step 3: Fetching latest source code...${NC}"
 if [ -f "Dockerfile" ] && [ -f "docker-compose.yml" ]; then
-    echo -e "${GREEN}✓ Already in project directory.${NC}"
-else
-    if [ ! -d "$TARGET_DIR" ]; then
-        git clone "https://github.com/${GITHUB_REPO}.git" "$TARGET_DIR"
-    fi
-    cd "$TARGET_DIR"
+    echo -e "${GREEN}✓ Already inside project directory.${NC}"
     git pull origin main 2>/dev/null || true
+else
+    if [ -d "$TARGET_DIR" ]; then
+        cd "$TARGET_DIR"
+        git pull origin main 2>/dev/null || true
+    else
+        git clone "https://github.com/${GITHUB_REPO}.git" "$TARGET_DIR"
+        cd "$TARGET_DIR"
+    fi
 fi
 
 # Prepare directories and database file for persistent volumes
-mkdir -p logs backups downloads
+mkdir -p logs backups downloads redis_data
 touch bot.db
 
 # 4. Configure .env file
@@ -117,7 +135,9 @@ if [[ "$RECONFIG" =~ ^[Yy]$ ]]; then
     INPUT_DONATION=${INPUT_DONATION:-https://daramet.com/Hornet2002}
 
     echo ""
-    read -p "Enter REDIS_URL (Optional, e.g. redis://127.0.0.1:6379/0) [Press enter to skip]: " INPUT_REDIS_URL
+    echo -e "${CYAN}Note: Redis is mandatory. A dedicated Redis container is automatically deployed.${NC}"
+    read -p "Enter REDIS_URL [Default: redis://redis:6379/0]: " INPUT_REDIS_URL
+    INPUT_REDIS_URL=${INPUT_REDIS_URL:-redis://redis:6379/0}
 
     cat <<EOF > .env
 TEL_API_ID=$INPUT_API_ID
@@ -146,6 +166,11 @@ REDIS_URL=$INPUT_REDIS_URL
 # BALE_PROXY=
 EOF
     echo -e "${GREEN}✓ .env file created successfully.${NC}"
+else
+    # Ensure REDIS_URL exists in existing .env
+    if ! grep -q "^REDIS_URL=" .env; then
+        echo "REDIS_URL=redis://redis:6379/0" >> .env
+    fi
 fi
 
 # 5. Build & Launch Docker Containers
