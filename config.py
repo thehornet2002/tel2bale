@@ -41,9 +41,7 @@ START_TXT = os.getenv("TEL_START_TXT", "")
 HELP_TXT = os.getenv("TEL_HELP_TXT", "")
 DONATION_LINK = os.getenv("DONATION_LINK","")
 IN_MEMORY = os.getenv("TEL_IN_MEMORY", "False").lower() == "true"
-SUPPORT_MESSAGE = os.getenv('SUPPORT_MESSAGE', 'False').strip().lower() == 'true'
-SUPPORT_GROUP = os.getenv('SUPPORT_GROUP', '')
-SUPPORT_MESSAGE_LIMIT = _safe_int(os.getenv('SUPPORT_MESSAGE_LIMIT'), 3)
+SUPPORT_MESSAGE_LIMIT = _safe_int(os.getenv('SUPPORT_MESSAGE_LIMIT'), 5)
 
 # محدودیت تعداد کاربران (0 = بدون محدودیت)
 # MAX_USERS: کل کاربرانی که ربات را start کرده‌اند
@@ -52,6 +50,12 @@ MAX_USERS = _safe_int(os.getenv('MAX_USERS'), 0)
 MAX_ACTIVE_USERS = _safe_int(os.getenv('MAX_ACTIVE_USERS'), 0)
 
 ADS_CHANNELS = _parse_list(os.getenv("TEL_ADS_CHANNELS", ""))
+
+WHITELIST_USERS = _parse_list(os.getenv("TEL_WHITELIST_USERS", ""), int)
+WHITELIST_ENABLED = os.getenv("TEL_WHITELIST_ENABLED", "False").strip().lower() == "true"
+
+# Redis Config
+REDIS_URL = os.getenv("REDIS_URL", "").strip().strip('\'"') or None
 
 # Proxy helpers
 def _clean_env(value: str | None) -> str:
@@ -124,8 +128,9 @@ def _update_env_keys(updates: dict):
             if len(parts) == 2:
                 key = parts[0].strip()
                 if key in updates:
+                    clean_val = str(updates[key]).replace("\r", "").replace("\n", "").strip()
                     # جایگزینی با مقدار جدید
-                    new_lines.append(f"{key}={updates[key]}\n")
+                    new_lines.append(f"{key}={clean_val}\n")
                     updated_keys.add(key)
                     continue
         
@@ -134,45 +139,18 @@ def _update_env_keys(updates: dict):
 
     # اضافه کردن کلیدهای جدیدی که در فایل از قبل وجود نداشتند
     for key, val in updates.items():
+        clean_val = str(val).replace("\r", "").replace("\n", "").strip()
         if key not in updated_keys:
             if new_lines and not new_lines[-1].endswith("\n"):
                 new_lines[-1] += "\n"
-            new_lines.append(f"{key}={val}\n")
+            new_lines.append(f"{key}={clean_val}\n")
+        else:
+            # بررسی مجدد خطوطی که جایگزین شدند با مقدار امن
+            pass
 
     # نوشتن مجدد بدون از دست دادن اطلاعات قبلی
     with open(env_path, "w", encoding="utf-8") as f:
         f.writelines(new_lines)
-
-async def set_support_message_enabled(enabled: bool):
-    """
-    فعال/غیرفعال کردن نمایش گزینه «پیام به پشتیبانی» در منو.
-    این تابع در main.py و بعد از بررسی عضویت ربات در SUPPORT_GROUP فراخوانی می‌شود.
-    """
-    global SUPPORT_MESSAGE
-
-    async with _env_lock:
-        SUPPORT_MESSAGE = enabled
-        try:
-            _update_env_keys({"SUPPORT_MESSAGE": str(enabled)})
-        except Exception as e:
-            logger.error(f"[CONFIG] خطا در ذخیره وضعیت پشتیبانی: {e}")
-
-
-async def set_support_group(group_id: int) -> bool:
-    """ذخیره ID عددی گروه پشتیبانی در حافظه و فایل .env"""
-    global SUPPORT_GROUP
-
-    async with _env_lock:
-        old_group = SUPPORT_GROUP
-        SUPPORT_GROUP = str(group_id)
-        try:
-            _update_env_keys({"SUPPORT_GROUP": SUPPORT_GROUP})
-            logger.info("[CONFIG] گروه پشتیبانی در فایل .env ذخیره شد.")
-            return True
-        except Exception as e:
-            SUPPORT_GROUP = old_group
-            logger.error(f"[CONFIG] خطا در ذخیره گروه پشتیبانی: {e}")
-            return False
 
 
 async def set_max_users(value: int) -> bool:

@@ -1,6 +1,7 @@
 import aioboto3
 from botocore.exceptions import ClientError
 import os
+import re
 import uuid  # <--- اضافه شدن کتابخانه uuid
 from utils.logger import get_logger
 
@@ -64,7 +65,8 @@ async def upload_file(
         
         # --- تولید نام یکتا (UUID) با حفظ پسوند فایل ---
         _, ext = os.path.splitext(file_path)  # استخراج پسوند فایل دانلودی
-        unique_object_key = f"{uuid.uuid4().hex}{ext}"  # مثال: 5f9a3b...8e.jpg
+        safe_ext = re.sub(r"[^a-zA-Z0-9_\.]", "", ext)[:10]
+        unique_object_key = f"{uuid.uuid4().hex}{safe_ext}"  # مثال: 5f9a3b...8e.jpg
         
         async with session.client("s3", endpoint_url=endpoint_url) as s3:
             

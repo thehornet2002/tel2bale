@@ -1,0 +1,12 @@
+services:
+  bot:
+    build: .
+    container_name: tel2bale
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./bot.db:/app/bot.db
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+      - ./downloads:/app/downloads

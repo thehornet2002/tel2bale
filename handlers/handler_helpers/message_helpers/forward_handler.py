@@ -30,7 +30,7 @@ def format_bale_error(error: Exception) -> str:
     return f"❌ خطا در ارسال:\n{str(error)}"
 
 
-async def forward(message: Message, user_id: int):
+async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
     bale_id = await model_async.get_bale_id(user_id)
     if not bale_id:
         await model_async.set_state(user_id, state='home')
@@ -68,6 +68,13 @@ async def forward(message: Message, user_id: int):
     media_obj = getattr(message, message.media.value) if message.media else None
     if not media_obj:
         return await message.reply_text('این نوع پیام پشتیبانی نمی‌شود.')
+
+    # بررسی کپچا قبل از ارسال فایل به بله در صورت فعال بودن
+    if not bypass_captcha and model_async.is_captcha_file_enabled() and not await model_async.check_admin(user_id):
+        from handlers.handler_helpers.message_helpers.captcha_handler import issue_captcha, set_pending_file_message
+        set_pending_file_message(user_id, message)
+        await issue_captcha(message, user_id, "file_forward")
+        return
 
     file_size = getattr(media_obj, 'file_size', 0)
 

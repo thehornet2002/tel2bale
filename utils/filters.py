@@ -116,3 +116,31 @@ async def _user_limit_filter_func(_, client: Client, message: Message) -> bool:
 
 
 user_limit_filter = filters.create(_user_limit_filter_func)
+
+
+
+async def _whitelist_filter_func(_, client: Client, message: Message) -> bool:
+    if not message.from_user:
+        return False
+    from db.model_async import is_user_whitelisted
+    if is_user_whitelisted(message.from_user.id):
+        return True
+    await message.reply_text("⛔ این ربات در حالت لیست سفید (Whitelist) قرار دارد و حساب شما مجاز نیست.")
+    return False
+
+
+whitelist_filter = filters.create(_whitelist_filter_func)
+
+
+async def _whitelist_filter_cb_func(_, client: Client, callback: CallbackQuery) -> bool:
+    if not callback.from_user:
+        return False
+    from db.model_async import is_user_whitelisted
+    if is_user_whitelisted(callback.from_user.id):
+        return True
+    await callback.answer("⛔ دسترسی شما مجاز نیست (لیست سفید فعال است).", show_alert=True)
+    return False
+
+
+whitelist_filter_cb = filters.create(_whitelist_filter_cb_func)
+

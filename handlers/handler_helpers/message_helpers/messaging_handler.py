@@ -24,8 +24,8 @@ async def enter_ads_message(message: Message, user_id: int):
         except Exception:
             failed += 1
 
-    await message.reply_text(f"✅ ارسال تمام شد\n\nموفق: {success}\nناموفق: {failed}", reply_markup=build_back_keyboard())
-    await model_async.set_state(user_id, 'home')
+    await message.reply_text(f"✅ ارسال تمام شد\n\nموفق: {success}\nناموفق: {failed}", reply_markup=build_back_management_keyboard())
+    await model_async.set_state(user_id, 'management')
 
 
 @admin_only
@@ -46,7 +46,7 @@ async def send_message_send_message(message: Message, user_id: int):
             target_id = int(m.group(1))
             await message.copy(chat_id=target_id)
             await message.reply_text("✅ پیام با موفقیت ارسال شد", reply_markup=build_back_management_keyboard())
-        await model_async.set_state(user_id, 'home')
+        await model_async.set_state(user_id, 'management')
     except Exception:
         await message.reply_text("❌ خطا در ارسال پیام (احتمالا کاربر ربات را بلاک کرده است)", reply_markup=build_back_management_keyboard())
-        await model_async.set_state(user_id, 'home')
+        await model_async.set_state(user_id, 'management')

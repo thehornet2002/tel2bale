@@ -164,10 +164,10 @@ fi
 # ==========================================
 echo -e "\n${YELLOW}Step 4: Installing build tools...${NC}"
 
-echo -e "${BLUE}Installing build-essential and Python development headers...${NC}"
-apt-get install -y build-essential 2>/dev/null || {
+echo -e "${BLUE}Installing build-essential, image libs, and Python development headers...${NC}"
+apt-get install -y build-essential libjpeg-dev zlib1g-dev 2>/dev/null || {
     echo -e "${YELLOW}Retrying apt-get update...${NC}"
-    apt-get update && apt-get install -y build-essential
+    apt-get update && apt-get install -y build-essential libjpeg-dev zlib1g-dev
 }
 
 if [ "$PYTHON_VERSION" != "3" ]; then
@@ -267,29 +267,17 @@ fi
 
 echo ""
 echo -e "${YELLOW}--- Support Group Configuration ---${NC}"
-read -p "Do you want to set up a support group? (y/n) [Default: n]: " INPUT_WANT_SUPPORT
-INPUT_WANT_SUPPORT=${INPUT_WANT_SUPPORT:-n}
-
-INPUT_SUPPORT_GROUP=""
-INPUT_SUPPORT_LIMIT=3
-
-if [[ "$INPUT_WANT_SUPPORT" == "y" || "$INPUT_WANT_SUPPORT" == "Y" ]]; then
-    read -p "Enter the numeric ID of the support group (bot must be a member of it): " INPUT_SUPPORT_GROUP
-    if ! [[ "$INPUT_SUPPORT_GROUP" =~ ^-?[0-9]+$ ]]; then
-        echo -e "${RED}Invalid numeric ID. Support group will not be configured.${NC}"
-        INPUT_SUPPORT_GROUP=""
-    fi
-
-    read -p "Enter max support messages per user before waiting for an admin reply [Default: 3]: " INPUT_SUPPORT_LIMIT
-    INPUT_SUPPORT_LIMIT=${INPUT_SUPPORT_LIMIT:-3}
-    if ! [[ "$INPUT_SUPPORT_LIMIT" =~ ^[0-9]+$ ]]; then
-        echo -e "${RED}Invalid numeric input. Using default (3)${NC}"
-        INPUT_SUPPORT_LIMIT=3
-    fi
-
-    echo -e "${BLUE}Note: bot membership in the group is verified automatically on startup;${NC}"
-    echo -e "${BLUE}the support menu option only appears if the bot is actually a member.${NC}"
+echo ""
+echo -e "${YELLOW}--- Ticket & Support Limits ---${NC}"
+read -p "Enter max pending tickets per user [Default: 5]: " INPUT_SUPPORT_LIMIT
+INPUT_SUPPORT_LIMIT=${INPUT_SUPPORT_LIMIT:-5}
+if ! [[ "$INPUT_SUPPORT_LIMIT" =~ ^[0-9]+$ ]]; then
+    INPUT_SUPPORT_LIMIT=5
 fi
+
+echo ""
+echo -e "${YELLOW}--- Redis Configuration (Optional) ---${NC}"
+read -p "Enter REDIS_URL (e.g. redis://127.0.0.1:6379/0) [Press enter to skip]: " INPUT_REDIS_URL
 
 cat <<EOF > .env
 TEL_API_ID=$INPUT_API_ID
@@ -309,12 +297,12 @@ TEL_PROXY_SCHEME=
 TEL_PROXY_HOST=
 TEL_PROXY_PORT=
 
-SUPPORT_GROUP=$INPUT_SUPPORT_GROUP
 SUPPORT_MESSAGE_LIMIT=$INPUT_SUPPORT_LIMIT
-SUPPORT_MESSAGE=False
 
 MAX_USERS=$INPUT_MAX_USERS
 MAX_ACTIVE_USERS=$INPUT_MAX_ACTIVE_USERS
+
+REDIS_URL=$INPUT_REDIS_URL
 EOF
 
 echo -e "${GREEN}✓ .env file created successfully${NC}"

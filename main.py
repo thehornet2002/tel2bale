@@ -9,11 +9,10 @@ from config import (
     TEL_BOT_TOKEN,
     ADMIN_IDS,
     TELPROXY,
-    SUPPORT_GROUP,
-    set_support_message_enabled,
 )
-from db.model_sync import create_tables as create_tables_sync
-from db.model_sync import add_user as add_user_sync
+from db.model_async import create_tables, add_user, set_admin
+from db.redis_client import close_redis
+from services.bale_service import bale_bot
 from utils.logger import setup_logger
 
 plugins = dict(root="handlers")
@@ -36,37 +35,18 @@ async def setup_bot_commands():
         BotCommand("help", "راهنمای استفاده از ربات"),
     ])
 
-async def check_support_group_membership():
-    """
-    بررسی می‌کند آیا ربات عضو گروه پشتیبانی (SUPPORT_GROUP) هست یا نه.
-    نتیجه در SUPPORT_MESSAGE ذخیره می‌شود و گزینه «پیام به پشتیبانی»
-    فقط در صورت عضویت واقعی ربات در گروه، در منو نمایش داده می‌شود.
-    """
-    if not SUPPORT_GROUP:
-        await set_support_message_enabled(False)
-        return
-
-    try:
-        me = await telapp.get_me()
-        member = await telapp.get_chat_member(int(SUPPORT_GROUP), me.id)
-        enabled = member.status.value in ("member", "administrator", "creator", "owner")
-    except Exception:
-        enabled = False
-
-    await set_support_message_enabled(enabled)
-
-
-#Program entry point
 async def main():
     setup_logger()
-    create_tables_sync()
+    await create_tables()
     for admin_id in ADMIN_IDS:
-        add_user_sync(admin_id, True)
+        await add_user(admin_id, is_admin=True)
+        await set_admin(admin_id)
     await telapp.start()
-    await check_support_group_membership()
     await setup_bot_commands()
     await idle()
     await telapp.stop()
+    await bale_bot.close()
+    await close_redis()
 
 if __name__ == "__main__":
     asyncio.run(main())

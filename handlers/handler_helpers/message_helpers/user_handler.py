@@ -1,3 +1,4 @@
+import re
 from pyrogram.types import Message
 from db import model_async
 from services.bale_service import bale_bot
@@ -16,9 +17,18 @@ async def enter_bale_id(message: Message, user_id: int):
 
 
 async def set_bale_token_bot(message: Message, user_id: int):
-    verify_state = await bale_bot.verify_token(message.text)
+    token = (message.text or "").strip()
+    if not token or len(token) > 128 or not re.match(r"^\d+:[A-Za-z0-9_\-]+$", token):
+        await model_async.set_state(user_id, 'home')
+        await message.reply_text(
+            'توکن بات بله معتبر نمی باشد لطفا دوباره تلاش کنید.',
+            reply_markup=build_back_keyboard()
+        )
+        return
+
+    verify_state = await bale_bot.verify_token(token)
     if verify_state:
-        await model_async.set_bale_token(user_id, message.text)
+        await model_async.set_bale_token(user_id, token)
         await model_async.set_state(user_id, 'home')
         await message.reply_text('توکن ربات بله با موفقیت ثبت شد.', reply_markup=build_back_keyboard())
     else:
@@ -31,6 +41,7 @@ async def set_bale_token_bot(message: Message, user_id: int):
 
 async def send_support_message(message: Message, user_id: int):
     import config
+    from db.redis_client import redis_get_state
 
     limit = config.SUPPORT_MESSAGE_LIMIT
     count = await model_async.get_support_message_count(user_id)
@@ -38,33 +49,42 @@ async def send_support_message(message: Message, user_id: int):
     if limit and count >= limit:
         await model_async.set_state(user_id, 'home')
         await message.reply_text(
-            'شما به سقف مجاز ارسال پیام به پشتیبانی رسیده اید. لطفا منتظر پاسخ ادمین بمانید.',
+            '⚠️ شما به سقف مجاز ارسال پیام/تیکت در انتظار پاسخ رسیده‌اید. لطفاً منتظر پاسخ ادمین بمانید.',
             reply_markup=build_back_keyboard()
         )
         return
+
+    # خواندن دسته انتخاب شده از دیتابیس/ردیس
+    cat_id = 1
+    state = await model_async.get_state(user_id)
+    if state.startswith("ticket_waiting_msg_"):
+        try:
+            cat_id = int(state.split("_")[-1])
+        except ValueError:
+            cat_id = 1
+
+    cat = await model_async.get_ticket_category(cat_id)
+    cat_title = cat["title"] if cat else "پشتیبانی عمومی"
+    is_anon = 1 if (cat and cat.get("is_anonymous")) else 0
 
     user = message.from_user
-    username_line = f"یوزرنیم: @{user.username}" if user.username else "یوزرنیم: ندارد"
-    full_name = f"{(user.first_name or '')} {(user.last_name or '')}".strip()
-    info_text = (
-        "\U0001F4E9 پیام جدید پشتیبانی\n"
-        f"شناسه تلگرام: {user.id}\n"
-        f"نام: {full_name}\n"
-        f"{username_line}"
+    username_line = f"@{user.username}" if user.username else "ندارد"
+    full_name = f"{(user.first_name or '')} {(user.last_name or '')}".strip() or "کاربر"
+    msg_content = message.text or message.caption or "(فایل/مدیا)"
+
+    ticket_id = await model_async.create_user_ticket(
+        telegram_id=user_id,
+        user_name=full_name,
+        category_id=cat_id,
+        message=msg_content,
+        subject=cat_title,
+        is_anonymous=is_anon
     )
 
-    try:
-        info_msg = await message._client.send_message(int(config.SUPPORT_GROUP), info_text)
-        await message.copy(int(config.SUPPORT_GROUP), reply_to_message_id=info_msg.id)
-    except Exception:
-        await model_async.set_state(user_id, 'home')
-        await message.reply_text(
-            'ارسال پیام به پشتیبانی با خطا مواجه شد، لطفا بعدا تلاش کنید.',
-            reply_markup=build_back_keyboard()
-        )
-        return
-
-    await model_async.save_support_message(user_id, info_msg.id)
     await model_async.increment_support_message_count(user_id)
     await model_async.set_state(user_id, 'home')
-    await message.reply_text('پیام شما با موفقیت برای پشتیبانی ارسال شد.', reply_markup=build_back_keyboard())
+    await message.reply_text(
+        f"✅ تیکت شما با شناسه **#{ticket_id}** در بخش **{cat_title}** با موفقیت ثبت شد.\n"
+        "به محض بررسی توسط تیم پشتیبانی، پاسخ برای شما ارسال خواهد شد.",
+        reply_markup=build_back_keyboard()
+    )

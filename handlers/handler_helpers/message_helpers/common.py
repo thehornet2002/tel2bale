@@ -19,8 +19,32 @@ def admin_only(func):
 
 
 async def get_valid_id(message: Message) -> int | None:
-    """بررسی می‌کند که متن پیام حتما یک عدد باشد و آن را برمی‌گرداند."""
-    if not message.text or not message.text.isdigit():
-        await message.reply_text("لطفا فقط شناسه عددی ارسال کنید.")
+    """
+    بررسی و استخراج شناسه عددی:
+    1. انتخاب بومی کاربر (UsersShared)
+    2. انتخاب بومی گروه/چت (ChatShared)
+    3. ارسال دستی متن عددی
+    """
+    if getattr(message, "users_shared", None):
+        users = message.users_shared.users
+        if users:
+            return users[0].id
+
+    if getattr(message, "chat_shared", None):
+        chat = message.chat_shared.chat
+        if chat:
+            return chat.id
+
+    text = (message.text or "").strip()
+    if not text or len(text) > 20 or not (text.isdigit() or (text.startswith("-") and text[1:].isdigit())):
+        await message.reply_text("لطفا فقط شناسه عددی ارسال کنید یا از دکمه انتخاب استفاده کنید.")
         return None
-    return int(message.text)
+
+    try:
+        val = int(text)
+        if not (-9223372036854775808 <= val <= 9223372036854775807):
+            raise ValueError
+        return val
+    except ValueError:
+        await message.reply_text("شناسه عددی وارد شده در محدوده معتبر نیست.")
+        return None

@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from db.db_sync import DB_NAME
+from db.db_async import DB_NAME
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
