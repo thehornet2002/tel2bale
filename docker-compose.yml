@@ -1,9 +1,14 @@
 services:
   redis:
-    image: redis:7-alpine
+    image: redis:alpine
     container_name: tel2bale_redis
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: >
+      redis-server
+      --appendonly yes
+      --rename-command EVAL ""
+      --rename-command EVALSHA ""
+      --rename-command SCRIPT ""
     volumes:
       - ./redis_data:/data
     healthcheck:

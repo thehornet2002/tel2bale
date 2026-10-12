@@ -179,12 +179,20 @@ fi
 echo -e "${GREEN}✓ Build tools installed${NC}"
 
 # ==========================================
-# 4.5. Install and Start Redis Server
+# 4.5. Install, Harden and Start Redis Server
 # ==========================================
-echo -e "\n${YELLOW}Step 4.5: Installing and starting Redis Server...${NC}"
+echo -e "\n${YELLOW}Step 4.5: Installing and configuring Redis Server...${NC}"
 apt-get install -y redis-server 2>/dev/null || apt-get install -y redis 2>/dev/null || true
+
+# Security hardening against CVE-2025-49844 (Disable unused Lua scripting execution)
+if [ -f "/etc/redis/redis.conf" ]; then
+    grep -q "rename-command EVAL " /etc/redis/redis.conf || echo 'rename-command EVAL ""' >> /etc/redis/redis.conf
+    grep -q "rename-command EVALSHA " /etc/redis/redis.conf || echo 'rename-command EVALSHA ""' >> /etc/redis/redis.conf
+    grep -q "rename-command SCRIPT " /etc/redis/redis.conf || echo 'rename-command SCRIPT ""' >> /etc/redis/redis.conf
+fi
+
 systemctl enable --now redis-server 2>/dev/null || systemctl enable --now redis 2>/dev/null || true
-echo -e "${GREEN}✓ Redis server installed and active${NC}"
+echo -e "${GREEN}✓ Redis server installed, hardened, and active${NC}"
 
 # ==========================================
 # 5. Install Python Dependencies
