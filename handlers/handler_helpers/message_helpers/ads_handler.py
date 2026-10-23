@@ -91,7 +91,8 @@ async def resolve_and_validate_ads_channel(message: Message, raw_value: str) -> 
             "ابتدا ربات را عضو کانال کنید، سپس دوباره تلاش کنید."
         )
     except Exception as e:
-        return None, f"خطا در بررسی کانال:\n{e}"
+        logger.error(f"[ADS] Channel resolve error for {raw_input}: {e}")
+        return None, "خطا در بررسی یا دسترسی به کانال تلگرام. لطفاً مطمئن شوید ربات در کانال ادمین است."
 
     chat_id = chat.id
 

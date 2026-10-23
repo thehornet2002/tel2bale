@@ -1,6 +1,8 @@
 """
 Asynchronous Redis client and session management with graceful RAM/SQLite fallback.
+Ensures sensitive credentials (passwords in URLs) are strictly masked in logs.
 """
+import re
 from typing import Any
 import redis.asyncio as aioredis
 from utils.logger import get_logger
@@ -9,6 +11,14 @@ logger = get_logger(__name__)
 
 _redis_client: aioredis.Redis | None = None
 _redis_available: bool = False
+
+
+def mask_url_credentials(url: str | None) -> str:
+    """Mask user:password authentication details in connection URLs."""
+    if not url:
+        return ""
+    # Matches ://user:password@ or ://:password@
+    return re.sub(r"://([^:@]+:)?([^@]+)@", r"://\1******@", url)
 
 
 async def init_redis(redis_url: str | None) -> None:
@@ -20,6 +30,7 @@ async def init_redis(redis_url: str | None) -> None:
         logger.info("[REDIS] No REDIS_URL configured; using in-memory state store.")
         return
 
+    masked_url = mask_url_credentials(redis_url)
     try:
         client = aioredis.from_url(
             redis_url,
@@ -30,11 +41,11 @@ async def init_redis(redis_url: str | None) -> None:
         await client.ping()
         _redis_client = client
         _redis_available = True
-        logger.info(f"[REDIS] Connected successfully to Redis: {redis_url}")
+        logger.info(f"[REDIS] Connected successfully to Redis: {masked_url}")
     except Exception as e:
         _redis_available = False
         _redis_client = None
-        logger.error(f"[REDIS] Failed to connect to Redis ({redis_url}): {e}. Falling back to memory/sqlite.")
+        logger.error(f"[REDIS] Failed to connect to Redis ({masked_url}): {e}. Falling back to memory/sqlite.")
 
 
 async def close_redis() -> None:

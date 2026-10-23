@@ -25,7 +25,8 @@ async def set_profile_photo_send_photo(message: Message, user_id: int):
         await message.reply("✅ عکس پروفایل با موفقیت تغییر کرد!", reply_markup=build_back_management_keyboard())
         await model_async.set_state(user_id, 'management')
     except Exception as e:
-        await message.reply(f"❌ خطا: {e}", reply_markup=build_back_management_keyboard())
+        logger.error(f"[PROFILE] Failed to get profile: {e}")
+        await message.reply("❌ خطا در بازیابی اطلاعات پروفایل.", reply_markup=build_back_management_keyboard())
         await model_async.set_state(user_id, 'management')
     finally:
         if path and os.path.exists(path):

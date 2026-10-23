@@ -1090,6 +1090,17 @@ async def get_poll(poll_id: int) -> dict | None:
 
 
 async def record_poll_vote(poll_id: int, telegram_id: int, option_idx: int) -> bool:
+    """Validate that poll exists, is active, and option index is within bounds before voting."""
+    poll = await get_poll(poll_id)
+    if not poll or not poll.get("is_active"):
+        logger.warning(f"[POLL] Attempted vote on inactive or non-existent poll {poll_id}")
+        return False
+
+    options = poll.get("options", [])
+    if not isinstance(options, list) or not (0 <= option_idx < len(options)):
+        logger.warning(f"[POLL] Invalid option index {option_idx} for poll {poll_id} with {len(options)} options")
+        return False
+
     async with get_async_db() as db:
         try:
             await db.execute("""
@@ -1098,7 +1109,8 @@ async def record_poll_vote(poll_id: int, telegram_id: int, option_idx: int) -> b
                 ON CONFLICT(poll_id, telegram_id) DO UPDATE SET option_idx = excluded.option_idx
             """, (poll_id, telegram_id, option_idx))
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"[POLL] Error recording vote: {e}")
             return False
 
 

@@ -181,16 +181,36 @@ class BaleService:
         content_type: str,
         caption: str | None = None,
     ) -> aiohttp.FormData:
-        file_bytes = await self._to_bytes(file_obj)
-
         data = aiohttp.FormData()
         data.add_field("chat_id", str(chat_id))
-        data.add_field(
-            field_name,
-            file_bytes,
-            filename=filename,
-            content_type=content_type,
-        )
+
+        # Stream disk files directly to prevent high RAM allocation and OOM
+        if isinstance(file_obj, (str, bytes, bytearray)):
+            if isinstance(file_obj, str) and os.path.isfile(file_obj):
+                fp = open(file_obj, "rb")
+                data.add_field(
+                    field_name,
+                    fp,
+                    filename=filename,
+                    content_type=content_type,
+                )
+            else:
+                file_bytes = await self._to_bytes(file_obj)
+                data.add_field(
+                    field_name,
+                    file_bytes,
+                    filename=filename,
+                    content_type=content_type,
+                )
+        else:
+            file_bytes = await self._to_bytes(file_obj)
+            data.add_field(
+                field_name,
+                file_bytes,
+                filename=filename,
+                content_type=content_type,
+            )
+
         if caption:
             data.add_field("caption", caption)
 

@@ -12,6 +12,7 @@ from handlers.handler_helpers.callback_helpers.user_handler import (
     reset_bale_id,
     reset_bot_token,
     reset_s3_access_key,
+    confirm_s3_purge_callback,
     send_support_message,
     set_bale_id,
     set_bale_bot_token,
@@ -158,6 +159,7 @@ CALLBACK_ROUTES = {
     "adm_manage_cookies": admin_manage_cookies_cb,
     "adm_upload_cookie": admin_upload_cookie_cb,
     "adm_delete_cookie": admin_delete_cookie_cb,
+    "confirm_s3_purge": confirm_s3_purge_callback,
 }
 
 
@@ -430,7 +432,8 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
             await execute_media_download(callback, user_id, token, quality)
             return
         except Exception as e:
-            await callback.answer(f"خطا: {e}", show_alert=True)
+            logger.error(f"[CALLBACK] Media download callback error: {e}")
+            await callback.answer("خطا در پردازش درخواست دانلود.", show_alert=True)
             return
 
     if callback.data.startswith("dl_send_text:"):
@@ -446,7 +449,7 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
         try:
             _, token = callback.data.split(":", 1)
             from handlers.handler_helpers.message_helpers.media_handler import execute_cancel_download
-            await execute_cancel_download(callback, token)
+            await execute_cancel_download(callback, user_id, token)
             return
         except Exception:
             pass

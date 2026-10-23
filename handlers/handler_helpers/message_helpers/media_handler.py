@@ -128,7 +128,7 @@ async def prompt_media_quality_selection(message: Message, user_id: int, url: st
     except Exception as e:
         logger.warning(f"[MEDIA] Extraction failed for {url}: {e}")
         await status_msg.edit_text(
-            f"⚠️ امکان استخراج مستقیم از این لینک وجود نداشت: {e}\nدر حال ارسال به عنوان متن ساده به بله..."
+            "⚠️ امکان استخراج مستقیم از این لینک وجود نداشت.\nدر حال ارسال به عنوان متن ساده به بله..."
         )
         return False
 
@@ -218,10 +218,10 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
             spotify_query=data.get("spotify_query"),
         )
     except Exception as e:
-        logger.error(f"[DOWNLOADER] Download execution failed: {e}")
+        logger.error(f"[DOWNLOADER] Download execution failed for user {user_id}: {e}")
         try:
             await callback.message.edit_text(
-                f"❌ خطا در دانلود رسانه:\n{e}",
+                "❌ خطا در دانلود رسانه. لطفاً از صحت لینک اطمینان حاصل کرده و مجدداً تلاش فرمایید.",
                 reply_markup=build_back_keyboard()
             )
         except Exception:
@@ -285,19 +285,28 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
                 session=s3_conn,
                 file_path=file_path,
                 endpoint_url=endpoint,
-                object_key=os.path.basename(file_path),
+                user_id=user_id,
             )
-            if not isinstance(link, str) or not link.startswith(("http://", "https://")):
-                raise RuntimeError(link)
 
             bale_caption = f"🎬 {title}\n📦 حجم: {file_size_mb:.1f} MB\n🔗 لینک دانلود مستقیم (یک ساعته):\n{link}"
             await bale_bot.send_message(bot_token, bale_id, bale_caption)
 
+    except s3_service.S3StorageQuotaExceeded:
+        from utils.keyboards import build_s3_purge_confirmation_keyboard
+        try:
+            await callback.message.edit_text(
+                "⚠️ **فضای باکت S3 شما تکمیل شده است!**\n\n"
+                "آیا مایلید محتویات قدیمی باکت S3 پاکسازی شود تا فضای جدید باز شود؟",
+                reply_markup=build_s3_purge_confirmation_keyboard()
+            )
+        except Exception:
+            pass
+        return
     except Exception as e:
         logger.error(f"[MEDIA] Forwarding downloaded media to Bale failed: {e}")
         try:
             await callback.message.edit_text(
-                f"❌ خطا در ارسال فایل به بله:\n{e}",
+                "❌ خطا در پردازش یا ارسال فایل به پیام‌رسان بله.",
                 reply_markup=build_back_keyboard()
             )
         except Exception:
@@ -328,10 +337,17 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
 
 async def execute_send_as_text(callback: CallbackQuery, user_id: int, token: str) -> None:
     """Forward original URL text directly to Bale without downloading."""
-    data = _PENDING_DOWNLOADS.pop(token, None)
+    data = _PENDING_DOWNLOADS.get(token)
     if not data:
         await callback.answer("درخواست منقضی شده است.", show_alert=True)
         return
+
+    # Strict token ownership validation
+    if data.get("user_id") != user_id:
+        await callback.answer("شما اجازه دسترسی به این درخواست را ندارید.", show_alert=True)
+        return
+
+    _PENDING_DOWNLOADS.pop(token, None)
 
     bale_id = await model_async.get_bale_id(user_id)
     bot_token = await model_async.get_bale_token(user_id)
@@ -347,17 +363,26 @@ async def execute_send_as_text(callback: CallbackQuery, user_id: int, token: str
             reply_markup=build_back_keyboard()
         )
     except Exception as e:
+        logger.error(f"[MEDIA] Send as text to Bale failed: {e}")
         await callback.message.edit_text(
-            f"❌ خطا در ارسال پیام به بله: {e}",
+            "❌ خطا در ارسال پیام به پیام‌رسان بله.",
             reply_markup=build_back_keyboard()
         )
 
 
-async def execute_cancel_download(callback: CallbackQuery, token: str) -> None:
+async def execute_cancel_download(callback: CallbackQuery, user_id: int, token: str) -> None:
     """Cancel pending media download request."""
+    data = _PENDING_DOWNLOADS.get(token)
+    if data and data.get("user_id") != user_id:
+        await callback.answer("شما اجازه لغو این درخواست را ندارید.", show_alert=True)
+        return
+
     _PENDING_DOWNLOADS.pop(token, None)
     await callback.answer("دانلود لغو شد.")
     try:
+        await callback.message.delete()
+    except Exception:
+        pass
         await callback.message.delete()
     except Exception:
         pass

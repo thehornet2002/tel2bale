@@ -121,6 +121,32 @@ async def reset_bot_token(message: Message, user_id: int) -> None:
     )
 
 
+async def confirm_s3_purge_callback(message: Message, user_id: int) -> None:
+    """Purge S3 bucket upon explicit user authorization."""
+    from services import s3_service
+    access_key = await get_access_key(user_id)
+    secret_key = await get_secret_key(user_id)
+    endpoint = await get_s3_endpoint(user_id)
+    if not access_key or not secret_key or not endpoint:
+        await _send_or_edit(message, "اطلاعات S3 تنظیم نشده است.", reply_markup=build_back_keyboard())
+        return
+
+    session = await s3_service.create_connection(access_key, secret_key)
+    success = await s3_service.empty_bucket(session, endpoint)
+    if success:
+        await _send_or_edit(
+            message,
+            "✅ باکت S3 با موفقیت پاکسازی شد و فضای ذخیره‌سازی آزاد گردید.\nاکنون می‌توانید فایل‌های جدید خود را ارسال فرمایید.",
+            reply_markup=build_back_keyboard()
+        )
+    else:
+        await _send_or_edit(
+            message,
+            "❌ خطا در پاکسازی باکت S3. لطفاً دسترسی‌ها و کلیدهای باکت خود را بررسی فرمایید.",
+            reply_markup=build_back_keyboard()
+        )
+
+
 async def send_support_message(message: Message, user_id: int) -> None:
     categories = await get_ticket_categories(active_only=True)
     if not categories:

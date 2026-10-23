@@ -130,10 +130,8 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
                 session=s3_connection,
                 file_path=file_path,
                 endpoint_url=s3_endpoint,
-                object_key=object_name
+                user_id=user_id,
             )
-            if not isinstance(link, str) or not link.startswith(("http://", "https://")):
-                raise RuntimeError(link)
             result_msg = 'لینک موقت (یک ساعته) :' + '\n' + link
             await bale_bot.send_message(bot_token, bale_id, result_msg)
             await status_msg.edit_text(result_msg)
@@ -143,9 +141,20 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
 
             return  # Successful: return early
 
+        except s3_service.S3StorageQuotaExceeded:
+            await rollback_quota(user_id, file_size)
+            from utils.keyboards import build_s3_purge_confirmation_keyboard
+            await message.reply_text(
+                "⚠️ **فضای باکت S3 شما تکمیل شده است!**\n\n"
+                "آیا مایلید محتویات قدیمی باکت S3 پاکسازی شود تا فضای جدید باز شود؟",
+                reply_markup=build_s3_purge_confirmation_keyboard()
+            )
+            return
+
         except Exception as e:
             await rollback_quota(user_id, file_size)
-            await message.reply_text(f"❌ خطا در فرآیند آپلود: {e}")
+            logger.error(f"[FORWARD] S3 upload error for user {user_id}: {e}")
+            await message.reply_text("❌ خطا در فرآیند آپلود به فضای ابری S3. لطفاً تنظیمات S3 خود را بررسی فرمایید.")
             return  # Prevent fallthrough to direct forwarding
 
         finally:

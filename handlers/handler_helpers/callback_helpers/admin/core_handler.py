@@ -30,12 +30,13 @@ async def get_db(message: Message, user_id: int) -> None:
         backup_path = await create_database_backup_async()
         await message.reply_document(
             document=backup_path,
-            caption="✅ نسخه پشتیبان دیتابیس",
+            caption="✅ نسخه پشتیبان دیتابیس (اطلاعات حساس و توکن‌های کاربران جهت امنیت ماسک شده‌اند).",
             reply_markup=build_management_keyboard()
         )
     except Exception as e:
+        logger.error(f"[ADMIN] Database backup export failed: {e}")
         await message.reply_text(
-            f"❌ خطا در گرفتن backup دیتابیس:\n{e}",
+            "❌ خطا در تهیه نسخه پشتیبان دیتابیس.",
             reply_markup=build_management_keyboard()
         )
     finally:

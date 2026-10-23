@@ -169,6 +169,15 @@ def yes_or_no_set_s3():
     return InlineKeyboardMarkup(rows)
 
 
+def build_s3_purge_confirmation_keyboard() -> InlineKeyboardMarkup:
+    """Confirmation prompt to purge S3 bucket upon storage exhaustion."""
+    rows = [
+        [InlineKeyboardButton(text="⚠️ بله، فایل‌های قدیمی باکت S3 پاک شوند", callback_data="confirm_s3_purge", style=ButtonStyle("danger"))],
+        [InlineKeyboardButton(text="❌ خیر، انصراف", callback_data="back", style=ButtonStyle("success"))]
+    ]
+    return InlineKeyboardMarkup(rows)
+
+
 def yes_or_no_set_bot_token():
     rows = [
         [InlineKeyboardButton(text='بله',callback_data='reset_bot_token', style=ButtonStyle('danger'))],

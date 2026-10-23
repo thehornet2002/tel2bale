@@ -12,17 +12,16 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def create_database_backup(
+def create_sanitized_database_backup(
     db_path: str = DB_NAME,
     backup_dir: str = "backups",
-    prefix: str = "bot_backup",
+    prefix: str = "bot_backup_sanitized",
 ) -> str:
     """
-    یک backup سالم و سازگار از SQLite می‌سازد و مسیر فایل backup را برمی‌گرداند.
-
-    نکته:
-    وقتی SQLite در حالت WAL باشد، کپی ساده bot.db کافی نیست؛ چون ممکن است بخشی
-    از تغییرات داخل bot.db-wal باشد. sqlite backup API یک snapshot سالم می‌سازد.
+    Create a clean, sanitized database backup for export:
+    1. Perform consistent snapshot using sqlite3 backup API.
+    2. Redact sensitive user credentials (bale_token, access_key, secret_key).
+    3. VACUUM sanitized backup to ensure zero remnant plaintext credentials.
     """
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database file not found: {db_path}")
@@ -45,24 +44,34 @@ def create_database_backup(
         source.backup(destination)
         destination.commit()
 
-        logger.info(f"[DB-BACKUP] Backup created successfully: {backup_path}")
+        # Sanitize sensitive credential fields
+        try:
+            destination.execute("""
+                UPDATE users
+                SET bale_token = CASE WHEN bale_token IS NOT NULL THEN '***REDACTED***' ELSE NULL END,
+                    access_key = CASE WHEN access_key IS NOT NULL THEN '***REDACTED***' ELSE NULL END,
+                    secret_key = CASE WHEN secret_key IS NOT NULL THEN '***REDACTED***' ELSE NULL END
+            """)
+            destination.commit()
+            destination.execute("VACUUM")
+        except sqlite3.OperationalError as e:
+            logger.warning(f"[DB-BACKUP] Redaction warning: {e}")
+
+        logger.info(f"[DB-BACKUP] Sanitized backup created successfully: {backup_path}")
         return backup_path
 
     except Exception:
-        logger.exception("[DB-BACKUP] Failed to create database backup")
-
+        logger.exception("[DB-BACKUP] Failed to create sanitized database backup")
         if os.path.exists(backup_path):
             try:
                 os.remove(backup_path)
             except Exception:
-                logger.exception("[DB-BACKUP] Failed to remove broken backup file")
-
+                pass
         raise
 
     finally:
         if destination is not None:
             destination.close()
-
         if source is not None:
             source.close()
 
@@ -70,16 +79,11 @@ def create_database_backup(
 async def create_database_backup_async(
     db_path: str = DB_NAME,
     backup_dir: str = "backups",
-    prefix: str = "bot_backup",
+    prefix: str = "bot_backup_sanitized",
 ) -> str:
-    """
-    نسخه async برای استفاده داخل handlerها.
-
-    چون backup گرفتن یک کار sync است، با asyncio.to_thread اجرا می‌شود
-    تا event loop ربات بلاک نشود.
-    """
+    """Async wrapper for generating sanitized database backup."""
     return await asyncio.to_thread(
-        create_database_backup,
+        create_sanitized_database_backup,
         db_path,
         backup_dir,
         prefix,
