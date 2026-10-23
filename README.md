@@ -30,6 +30,18 @@ It is particularly valuable in environments where direct access to Telegram is r
 
 ## ✨ Features
 
+- **Multimedia Downloader Engine**:
+  - **YouTube**: Download videos and shorts with selectable resolutions (1080p, 720p, 480p, 360p) or extract audio (MP3).
+  - **Instagram**: Seamless download of Reels, Posts, and IGTV.
+  - **Spotify**: Fast track metadata extraction and high-quality MP3 audio download.
+  - **1000+ Platforms**: Support for TikTok, Twitter/X, SoundCloud, Pinterest, and generic video links via `yt-dlp`.
+- **Advanced Cookie Management**:
+  - Global admin `cookies.txt` support for overcoming age-restrictions and anti-bot challenges.
+  - Optional personal user cookies upload for accessing private feeds.
+- **Enhanced Quota & Bandwidth Management**:
+  - Atomic per-user download volume accounting across direct files and streaming downloads.
+  - User self-service quota inspection (`📊 سهمیه مصرفی من`).
+  - Automatic offloading to S3 when media exceeds `TEL_MAX_FILE_SIZE`.
 - **Rich Media Forwarding**: Supports text, photos, videos, audio, voice messages, documents, animations (GIFs), locations, and contacts.
 - **Large File S3 Storage**: Streaming upload with automatic unique UUID naming, temporary presigned links, bucket capacity recovery, and immediate disk cleanup.
 - **Redis State Management**: High-speed user session state caching with automatic fallback to RAM and SQLite.
@@ -48,10 +60,11 @@ It is particularly valuable in environments where direct access to Telegram is r
   - Whitelist mode toggle, ban/unban by Telegram ID or Bale ID.
   - Global and per-user download volume quotas.
   - Registration limits (total users and active users capacity).
+  - Cookie file upload and deletion.
   - Mandatory channel join enforcement with public/private link resolution.
   - Database backup file export directly inside Telegram chat.
   - Live donation link customization.
-- **Containerized & Automated**: Production-ready `Dockerfile`, `docker-compose.yml`, and one-line setup scripts.
+- **Containerized & Automated**: Production-ready `Dockerfile` (with `ffmpeg`), `docker-compose.yml`, and one-line setup scripts.
 
 ---
 

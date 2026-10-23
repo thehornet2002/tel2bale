@@ -15,11 +15,16 @@ def build_start_keyboard(is_admin: bool = False):
     rows = [
         [InlineKeyboardButton(text="تنظیم ID عددی بله", callback_data='set_bale_id', style=ButtonStyle('primary'))],
         [InlineKeyboardButton(text='تنظیم Bot Token بله', callback_data='set_bale_bot_token', style=ButtonStyle('primary'))],
-        [InlineKeyboardButton(text='تنظیم Access Key و Secret Key برای  S3', callback_data="set_s3", style=ButtonStyle('primary'))]
+        [InlineKeyboardButton(text='تنظیم Access Key و Secret Key برای  S3', callback_data="set_s3", style=ButtonStyle('primary'))],
+        [InlineKeyboardButton(text="📥 دانلود ویدیو و موزیک (YouTube, Spotify, IG)", callback_data="user_download_media_prompt", style=ButtonStyle('primary'))],
     ]
     # Donation link is permanently displayed on start keyboard
     donate_url = config.DONATION_LINK or "https://daramet.com/Hornet2002"
     rows.append([InlineKeyboardButton(text='☕ حمایت مالی (دونیت)', url=donate_url, style=ButtonStyle('success'))])
+    rows.append([
+        InlineKeyboardButton(text="📊 سهمیه مصرفی من", callback_data="user_quota_info", style=ButtonStyle('success')),
+        InlineKeyboardButton(text="🍪 تنظیمات کوکی", callback_data="user_cookie_menu", style=ButtonStyle('primary'))
+    ])
     rows.append([InlineKeyboardButton(text='راهنمای استفاده از ربات', callback_data='help', style=ButtonStyle('success'))])
     rows.append([
         InlineKeyboardButton(text="📩 ارسال تیکت پشتیبانی", callback_data='user_new_ticket', style=ButtonStyle('primary')),
@@ -67,7 +72,7 @@ def build_management_keyboard() -> ReplyKeyboardMarkup:
         [KeyboardButton("💾 دریافت دیتابیس"), KeyboardButton("📊 ۱۰ کاربر پرمصرف")],
         [KeyboardButton("🎫 تیکت‌های پشتیبانی"), KeyboardButton("🗂 موضوعات تیکت")],
         [KeyboardButton("📊 مدیریت نظرسنجی‌ها"), KeyboardButton("➕ نظرسنجی جدید")],
-        [KeyboardButton("🔐 تنظیمات کپچا"), KeyboardButton("⚙️ مدیریت لیست سفید")],
+        [KeyboardButton("🔐 تنظیمات کپچا"), KeyboardButton("🍪 مدیریت کوکی‌ها")],
         [KeyboardButton("🚫 بن تلگرام"), KeyboardButton("✅ آنبن تلگرام")],
         [KeyboardButton("🚫 بن بله"), KeyboardButton("✅ آنبن بله")],
         [KeyboardButton("➕ افزودن ادمین"), KeyboardButton("➖ حذف ادمین")],
@@ -369,3 +374,77 @@ def build_captcha_settings_keyboard(ticket_on: bool, poll_on: bool, file_on: boo
         )],
         [InlineKeyboardButton(text="🔙 بازگشت به مدیریت", callback_data="back_to_management")]
     ])
+
+
+def build_media_quality_keyboard(media_token: str, platform: str, qualities: list) -> InlineKeyboardMarkup:
+    """Build quality selection buttons for media downloads."""
+    rows = []
+
+    if platform == "spotify":
+        rows.append([
+            InlineKeyboardButton(text="🎵 دانلود عالی (320 kbps MP3)", callback_data=f"dl_q:{media_token}:320k"),
+        ])
+        rows.append([
+            InlineKeyboardButton(text="🎵 دانلود معمولی (128 kbps MP3)", callback_data=f"dl_q:{media_token}:128k"),
+        ])
+    elif platform == "instagram":
+        rows.append([
+            InlineKeyboardButton(text="📥 دانلود ویدیو / پست (کیفیت اصلی)", callback_data=f"dl_q:{media_token}:best"),
+        ])
+        rows.append([
+            InlineKeyboardButton(text="🎵 استخراج صدا (MP3)", callback_data=f"dl_q:{media_token}:audio"),
+        ])
+    else:
+        # YouTube and generic platforms with video heights
+        q_row = []
+        for q in qualities:
+            label = f"🎥 {q}p" if str(q).isdigit() else f"📥 {q}"
+            q_row.append(InlineKeyboardButton(text=label, callback_data=f"dl_q:{media_token}:{q}"))
+            if len(q_row) == 2:
+                rows.append(q_row)
+                q_row = []
+        if q_row:
+            rows.append(q_row)
+
+        rows.append([
+            InlineKeyboardButton(text="🎵 فایل صوتی (MP3)", callback_data=f"dl_q:{media_token}:audio"),
+        ])
+
+    rows.append([
+        InlineKeyboardButton(text="✉️ ارسال مستقیم به عنوان متن به بله", callback_data=f"dl_send_text:{media_token}"),
+    ])
+    rows.append([
+        InlineKeyboardButton(text="❌ انصراف", callback_data=f"dl_cancel:{media_token}"),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
+def build_admin_cookie_keyboard(has_cookie: bool) -> InlineKeyboardMarkup:
+    """Admin cookie management buttons."""
+    rows = [
+        [InlineKeyboardButton(text="📤 آپلود کوکی عمومی جدید (cookies.txt)", callback_data="adm_upload_cookie")],
+    ]
+    if has_cookie:
+        rows.append([
+            InlineKeyboardButton(text="🗑 حذف کوکی عمومی فعلی", callback_data="adm_delete_cookie"),
+        ])
+    rows.append([
+        InlineKeyboardButton(text="🔙 بازگشت به مدیریت", callback_data="back_to_management"),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
+def build_user_cookie_keyboard(has_cookie: bool) -> InlineKeyboardMarkup:
+    """User personal cookie management buttons."""
+    rows = [
+        [InlineKeyboardButton(text="📤 آپلود کوکی شخصی (cookies.txt)", callback_data="user_upload_cookie")],
+    ]
+    if has_cookie:
+        rows.append([
+            InlineKeyboardButton(text="🗑 حذف کوکی شخصی من", callback_data="user_delete_cookie"),
+        ])
+    rows.append([
+        InlineKeyboardButton(text="🔙 بازگشت", callback_data="back"),
+    ])
+    return InlineKeyboardMarkup(rows)
+

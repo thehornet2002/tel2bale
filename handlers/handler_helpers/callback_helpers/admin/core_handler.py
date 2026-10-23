@@ -89,3 +89,28 @@ async def set_max_active_users(message: Message, user_id: int) -> None:
         'لطفا سقف کاربران فعال (کسانی که bale_id یا bale_token دارند) را وارد کنید (0 برای بدون محدودیت):',
         reply_markup=build_cancel_reply_keyboard("🔙 انصراف و بازگشت به مدیریت")
     )
+
+
+@admin_required
+async def admin_manage_cookies_cb(message: Message, user_id: int) -> None:
+    from handlers.handler_helpers.message_helpers.media_handler import admin_manage_cookies
+    await admin_manage_cookies(message, user_id)
+
+
+@admin_required
+async def admin_upload_cookie_cb(message: Message, user_id: int) -> None:
+    await set_state(user_id, 'waiting_admin_cookies')
+    await message.reply_text(
+        '🍪 لطفاً فایل cookies.txt را ارسال نمایید (به صورت فایل Document یا متن):',
+        reply_markup=build_cancel_reply_keyboard("🔙 انصراف و بازگشت به مدیریت")
+    )
+
+
+@admin_required
+async def admin_delete_cookie_cb(message: Message, user_id: int) -> None:
+    from services.cookie_service import delete_cookie_file
+    from handlers.handler_helpers.message_helpers.media_handler import admin_manage_cookies
+    delete_cookie_file(None)
+    await message.reply_text("✅ کوکی عمومی حذف شد.")
+    await admin_manage_cookies(message, user_id)
+

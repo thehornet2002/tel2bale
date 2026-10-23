@@ -47,6 +47,14 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
     # 1. Handle Non-Media Messages First
     try:
         if message.text:
+            text_val = message.text.strip()
+            # Intercept media URLs (YouTube, Instagram, Spotify, etc.) for download quality selection
+            from services.downloader_service import is_media_url
+            if is_media_url(text_val):
+                from handlers.handler_helpers.message_helpers.media_handler import handle_media_link_request
+                if await handle_media_link_request(message, user_id, text_val):
+                    return
+
             await bale_bot.send_message(bot_token, bale_id, message.text)
             return await message.reply_text('پیام با موفقیت ارسال شد.')
 

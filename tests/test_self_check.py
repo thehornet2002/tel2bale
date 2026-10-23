@@ -347,6 +347,92 @@ async def test_security_guards():
     assert model_async.is_captcha_file_enabled() is False
 
 
+async def test_downloader_and_cookies():
+    from services.downloader_service import (
+        detect_platform,
+        extract_media_url,
+        is_media_url,
+    )
+    from services.cookie_service import (
+        delete_cookie_file,
+        get_cookie_status,
+        get_effective_cookie_file,
+        save_cookie_file,
+    )
+
+    # URL detection tests
+    yt_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    ig_url = "https://www.instagram.com/reel/C8xyz123/"
+    sp_url = "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"
+    regular_text = "سلام، این یک متن عادی است."
+
+    assert is_media_url(yt_url) is True
+    assert is_media_url(ig_url) is True
+    assert is_media_url(sp_url) is True
+    assert is_media_url(regular_text) is False
+
+    assert detect_platform(yt_url) == "youtube"
+    assert detect_platform(ig_url) == "instagram"
+    assert detect_platform(sp_url) == "spotify"
+    assert detect_platform("https://soundcloud.com/artist/track") == "generic"
+
+    assert extract_media_url(f"Check this: {yt_url} cool!") == yt_url
+
+    # Cookie service tests
+    test_user_id = 12345999
+    cookie_sample = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsample_value\n"
+
+    # Save user cookie
+    assert save_cookie_file(cookie_sample, user_id=test_user_id) is True
+    status = get_cookie_status(test_user_id)
+    assert status["has_cookie"] is True
+    assert status["is_user_specific"] is True
+    assert get_effective_cookie_file(test_user_id) is not None
+
+    # Delete user cookie
+    assert delete_cookie_file(test_user_id) is True
+    status_after = get_cookie_status(test_user_id)
+    assert status_after["is_user_specific"] is False
+
+    # Save global cookie
+    assert save_cookie_file(cookie_sample, user_id=None) is True
+    global_status = get_cookie_status()
+    assert global_status["has_cookie"] is True
+    assert get_effective_cookie_file() is not None
+
+    # Clean up global cookie
+    delete_cookie_file(None)
+
+
+async def test_quota_updates():
+    from services.quota_service import get_quota_details
+
+    uid = 444333222
+    await model_async.add_user(uid)
+
+    # Unlimited by default
+    details = await get_quota_details(uid)
+    assert details["is_unlimited"] is True
+
+    # Set 2GB limit
+    await model_async.set_limit_download(uid, 2.0)
+    details2 = await get_quota_details(uid)
+    assert details2["is_unlimited"] is False
+    assert details2["limit_gb"] == 2.0
+    assert details2["remaining_gb"] == 2.0
+
+    # Consume 1GB
+    one_gb = 1024 * 1024 * 1024
+    assert await model_async.reserve_download_quota(uid, one_gb) is True
+    details3 = await get_quota_details(uid)
+    assert round(details3["remaining_gb"], 1) == 1.0
+
+    # Reset quota
+    assert await model_async.reset_user_download_quota(uid) is True
+    details4 = await get_quota_details(uid)
+    assert round(details4["remaining_gb"], 1) == 2.0
+
+
 
 async def main():
     await test_parser()
@@ -359,6 +445,8 @@ async def main():
     await test_redis_state_integration()
     await test_ticket_system_integration()
     await test_security_guards()
+    await test_downloader_and_cookies()
+    await test_quota_updates()
     print("ALL TESTS PASSED SUCCESSFULLY")
 
 

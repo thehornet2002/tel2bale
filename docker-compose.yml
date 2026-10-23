@@ -33,3 +33,4 @@ services:
       - ./logs:/app/logs
       - ./backups:/app/backups
       - ./downloads:/app/downloads
+      - ./cookies:/app/cookies

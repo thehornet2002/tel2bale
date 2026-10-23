@@ -615,6 +615,49 @@ async def set_limit_download_all(limit: float) -> None:
     logger.info(f"[MODEL-ASYNC] Global download limit set to {limit}")
 
 
+async def get_user_quota_info(tg_id: int) -> dict:
+    """Retrieve detailed download quota consumption and remaining limit."""
+    async with get_async_db() as db:
+        cursor = await db.execute("""
+            SELECT downloaded_volume, limit_download
+            FROM users
+            WHERE telegram_id = ?
+        """, (tg_id,))
+        try:
+            row = await cursor.fetchone()
+        finally:
+            await cursor.close()
+
+        if not row:
+            return {
+                "downloaded_gb": 0.0,
+                "downloaded_mb": 0.0,
+                "limit_gb": 0.0,
+                "remaining_gb": 0.0,
+                "remaining_mb": 0.0,
+                "is_unlimited": True,
+            }
+
+        downloaded = float(row["downloaded_volume"] or 0.0)
+        limit = float(row["limit_download"] or 0.0)
+        is_unlimited = (limit <= 0)
+        remaining = 0.0 if is_unlimited else max(0.0, limit - downloaded)
+
+        return {
+            "downloaded_gb": downloaded,
+            "downloaded_mb": downloaded * 1024,
+            "limit_gb": limit,
+            "remaining_gb": remaining,
+            "remaining_mb": remaining * 1024,
+            "is_unlimited": is_unlimited,
+        }
+
+
+async def reset_user_download_quota(tg_id: int) -> bool:
+    """Reset downloaded volume to 0 for a user."""
+    return await _update_user_field(tg_id, "downloaded_volume", 0.0)
+
+
 # =========================
 # Ban / Unban
 # =========================

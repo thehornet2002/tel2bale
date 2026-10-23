@@ -65,6 +65,11 @@ from handlers.handler_helpers.message_helpers.admin_handler import (
     set_max_active_users_send_value,
     set_max_users_send_value,
 )
+from handlers.handler_helpers.message_helpers.media_handler import (
+    admin_manage_cookies,
+    admin_save_cookies_message,
+    user_save_cookies_message,
+)
 from handlers.handler_helpers.callback_helpers.admin.ticket_mgmt_handler import (
     admin_captcha_settings_view,
     admin_manage_categories,
@@ -109,6 +114,20 @@ import config
 SEND_MESSAGE_RE = compile(r"^send_message_(\d{1,20})$")
 SET_LIMIT_RE = compile(r"^set_limit_(\d{1,20})$")
 
+async def handle_media_link_input(message: Message, user_id: int):
+    text = (message.text or "").strip()
+    await set_state(user_id, "home")
+    from services.downloader_service import extract_media_url
+    url = extract_media_url(text) or text
+    if not url.startswith("http"):
+        await message.reply_text("❌ لطفاً یک لینک معتبر ارسال فرمایید.", reply_markup=build_start_keyboard())
+        return
+    from handlers.handler_helpers.message_helpers.media_handler import handle_media_link_request
+    handled = await handle_media_link_request(message, user_id, url)
+    if not handled:
+        await forward(message, user_id)
+
+
 STATE_HANDLERS = {
     "home": forward,
     "enter_bale_id": enter_bale_id,
@@ -137,6 +156,10 @@ STATE_HANDLERS = {
     "set_s3_access_key": set_s3_access_key,
     "set_s3_secret_key": set_s3_secret_key,
     "set_s3_endpoint": set_s3_endpoint,
+    # cookies & media
+    "waiting_admin_cookies": admin_save_cookies_message,
+    "waiting_user_cookies": user_save_cookies_message,
+    "waiting_media_link": handle_media_link_input,
 }
 
 CANCEL_WORDS = {
@@ -219,6 +242,7 @@ async def handle_input(client: Client, message: Message) -> None:
             "📊 مدیریت نظرسنجی‌ها": admin_polls_management,
             "➕ نظرسنجی جدید": admin_start_poll_creation,
             "🔐 تنظیمات کپچا": admin_captcha_settings_view,
+            "🍪 مدیریت کوکی‌ها": admin_manage_cookies,
             "☕ تغییر لینک دونیت": change_donation_link_cb,
             "⚙️ مدیریت لیست سفید": manage_whitelist,
             "➕ افزودن به لیست سفید": add_whitelist,

@@ -106,7 +106,7 @@ else
 fi
 
 # Prepare directories and database file for persistent volumes
-mkdir -p logs backups downloads redis_data
+mkdir -p logs backups downloads cookies redis_data
 touch bot.db
 
 # 4. Configure .env file

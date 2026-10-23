@@ -164,10 +164,10 @@ fi
 # ==========================================
 echo -e "\n${YELLOW}Step 4: Installing build tools...${NC}"
 
-echo -e "${BLUE}Installing build-essential, image libs, and Python development headers...${NC}"
-apt-get install -y build-essential libjpeg-dev zlib1g-dev 2>/dev/null || {
+echo -e "${BLUE}Installing build-essential, image libs, ffmpeg, and Python development headers...${NC}"
+apt-get install -y build-essential libjpeg-dev zlib1g-dev ffmpeg 2>/dev/null || {
     echo -e "${YELLOW}Retrying apt-get update...${NC}"
-    apt-get update && apt-get install -y build-essential libjpeg-dev zlib1g-dev
+    apt-get update && apt-get install -y build-essential libjpeg-dev zlib1g-dev ffmpeg
 }
 
 if [ "$PYTHON_VERSION" != "3" ]; then

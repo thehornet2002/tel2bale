@@ -258,3 +258,49 @@ async def user_view_poll_results(message: Message, user_id: int, poll_id: int) -
         text="\n".join(lines),
         reply_markup=back_kb
     )
+
+
+async def user_download_media_prompt(message: Message, user_id: int) -> None:
+    """Prompt user to send a media URL for downloading."""
+    await set_state(user_id, "waiting_media_link")
+    text = (
+        "📥 **دانلود چندرسانه‌ای و ارسال به بله**\n\n"
+        "لطفاً لینک ویدیو، پست یا آهنگ مورد نظر خود را ارسال فرمایید:\n"
+        "• **YouTube**: ویدیوها و شورتز با انتخاب کیفیت\n"
+        "• **Instagram**: ریلز، پست‌ها و IGTV\n"
+        "• **Spotify**: دانلود آهنگ‌ها با کیفیت صوتی بالا\n"
+        "• **سایر سایت‌ها**: تیک‌تاک، ساندکلاد، توییتر/X و...\n\n"
+        "💡 *پس از ارسال لینک، منوی انتخاب کیفیت نمایش داده خواهد شد.*"
+    )
+    await _send_or_edit(message=message, text=text, reply_markup=build_back_keyboard())
+
+
+async def user_quota_info_callback(message: Message, user_id: int) -> None:
+    """Callback wrapper for user quota info."""
+    from handlers.handler_helpers.message_helpers.media_handler import show_user_quota_info
+    await show_user_quota_info(message, user_id)
+
+
+async def user_cookie_menu_callback(message: Message, user_id: int) -> None:
+    """Callback wrapper for user cookie panel."""
+    from handlers.handler_helpers.message_helpers.media_handler import user_cookie_menu
+    await user_cookie_menu(message, user_id)
+
+
+async def user_upload_cookie_callback(message: Message, user_id: int) -> None:
+    """Prompt user to upload custom cookie file."""
+    await set_state(user_id, "waiting_user_cookies")
+    text = (
+        "🍪 **ارسال کوکی اختصاصی (cookies.txt):**\n\n"
+        "لطفاً فایل `cookies.txt` (فرمت استاندارد Netscape) را به صورت فایل یا متن ارسال فرمایید:\n\n"
+        "💡 *نکته: کوکی برای دسترسی به محتوای دارای محدودیت سنی یا اکانت شخصی شما کاربرد دارد.*"
+    )
+    await _send_or_edit(message=message, text=text, reply_markup=build_back_keyboard())
+
+
+async def user_delete_cookie_callback(message: Message, user_id: int) -> None:
+    """Delete user personal cookie file."""
+    from services.cookie_service import delete_cookie_file
+    delete_cookie_file(user_id)
+    from handlers.handler_helpers.message_helpers.media_handler import user_cookie_menu
+    await user_cookie_menu(message, user_id)
