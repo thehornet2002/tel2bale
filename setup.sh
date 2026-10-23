@@ -69,14 +69,31 @@ echo -e "${GREEN}✓ System dependencies installed successfully.${NC}"
 # ==========================================
 # 3. Configure, Harden & Start Redis Server
 # ==========================================
-echo -e "\n${YELLOW}Step 3: Configuring and hardening Redis Server...${NC}"
+echo -e "\n${YELLOW}Step 3: Configuring, detecting, and hardening Redis Server...${NC}"
+
+# Ensure redis-server package is installed
+if ! command -v redis-server &>/dev/null && ! command -v redis-cli &>/dev/null; then
+    echo -e "${BLUE}Installing redis-server package...${NC}"
+    apt-get install -y redis-server 2>/dev/null || apt-get install -y redis 2>/dev/null || true
+fi
+
+# Hardening against CVE-2025-49844 (Disable unused Lua scripting execution)
 if [ -f "/etc/redis/redis.conf" ]; then
     grep -q "rename-command EVAL " /etc/redis/redis.conf || echo 'rename-command EVAL ""' >> /etc/redis/redis.conf
     grep -q "rename-command EVALSHA " /etc/redis/redis.conf || echo 'rename-command EVALSHA ""' >> /etc/redis/redis.conf
     grep -q "rename-command SCRIPT " /etc/redis/redis.conf || echo 'rename-command SCRIPT ""' >> /etc/redis/redis.conf
 fi
+
 systemctl enable --now redis-server 2>/dev/null || systemctl enable --now redis 2>/dev/null || true
-echo -e "${GREEN}✓ Redis server active and hardened against Lua execution vulnerabilities.${NC}"
+
+# Test local Redis connectivity
+if redis-cli ping 2>/dev/null | grep -q "PONG"; then
+    echo -e "${GREEN}✓ Local Redis server is installed, running, and responding to PING (127.0.0.1:6379).${NC}"
+    DEFAULT_REDIS_URL="redis://127.0.0.1:6379/0"
+else
+    echo -e "${YELLOW}Notice: Local Redis starting or using custom port/password.${NC}"
+    DEFAULT_REDIS_URL="redis://127.0.0.1:6379/0"
+fi
 
 # ==========================================
 # 4. Virtual Environment & Python Packages
@@ -121,8 +138,8 @@ if [[ "$RECONFIG" =~ ^[Yy]$ ]]; then
     INPUT_DONATION=${INPUT_DONATION:-https://daramet.com/Hornet2002}
 
     echo ""
-    read -p "Enter REDIS_URL [Default: redis://127.0.0.1:6379/0]: " INPUT_REDIS_URL
-    INPUT_REDIS_URL=${INPUT_REDIS_URL:-redis://127.0.0.1:6379/0}
+    read -p "Enter REDIS_URL [Default: ${DEFAULT_REDIS_URL:-redis://127.0.0.1:6379/0}]: " INPUT_REDIS_URL
+    INPUT_REDIS_URL=${INPUT_REDIS_URL:-${DEFAULT_REDIS_URL:-redis://127.0.0.1:6379/0}}
 
     cat <<EOF > .env
 TEL_API_ID=$INPUT_API_ID
