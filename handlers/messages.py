@@ -68,7 +68,6 @@ from handlers.handler_helpers.message_helpers.admin_handler import (
 from handlers.handler_helpers.message_helpers.media_handler import (
     admin_manage_cookies,
     admin_save_cookies_message,
-    user_save_cookies_message,
 )
 from handlers.handler_helpers.callback_helpers.admin.ticket_mgmt_handler import (
     admin_captcha_settings_view,
