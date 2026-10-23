@@ -3,7 +3,6 @@
 <div align="center">
 
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Redis](https://img.shields.io/badge/Redis-Supported-DC382D?logo=redis&logoColor=white)](https://redis.io/)
 [![Status](https://img.shields.io/badge/Status-Active-brightgreen)](https://github.com/thehornet2002/tel2bale)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -24,7 +23,7 @@ It is particularly valuable in environments where direct access to Telegram is r
 - Files smaller than or equal to `TEL_MAX_FILE_SIZE` (default 20MB) are directly uploaded and sent to Bale API.
 - Files exceeding this threshold are uploaded to **Arvan Cloud S3-compatible object storage**, and an expiring presigned download link is sent to the Bale destination.
 - User bandwidth is strictly managed through an atomic SQLite/database quota reservation system.
-- Database access is non-blocking (`aiosqlite`) with in-memory RAM caching and optional **Redis** state storage for maximum throughput.
+- Database access is non-blocking (`aiosqlite`) with in-memory RAM caching and **Redis** state storage for maximum throughput.
 
 ---
 
@@ -35,9 +34,8 @@ It is particularly valuable in environments where direct access to Telegram is r
   - **Instagram**: Seamless download of Reels, Posts, and IGTV.
   - **Spotify**: Fast track metadata extraction and high-quality MP3 audio download.
   - **1000+ Platforms**: Support for TikTok, Twitter/X, SoundCloud, Pinterest, and generic video links via `yt-dlp`.
-- **Advanced Cookie Management**:
-  - Global admin `cookies.txt` support for overcoming age-restrictions and anti-bot challenges.
-  - Optional personal user cookies upload for accessing private feeds.
+- **Global Cookie Management**:
+  - Admin `cookies.txt` support for overcoming age-restrictions and bot-detection challenges.
 - **Enhanced Quota & Bandwidth Management**:
   - Atomic per-user download volume accounting across direct files and streaming downloads.
   - User self-service quota inspection (`📊 سهمیه مصرفی من`).
@@ -52,9 +50,9 @@ It is particularly valuable in environments where direct access to Telegram is r
 - **Multi-Poll & Survey System**:
   - Create and manage multiple active polls with custom questions and choices.
   - One-vote-per-user enforcement with live percentage and visual bar charts.
-- **3-Way Security Captcha Challenge**:
-  - Independent admin toggles for Ticket submission, Poll voting, and File forwarding.
-  - Advanced distorted sinusoidal image captcha with automatic timeout and refresh limit.
+- **Security Captcha & Cloudflare Turnstile**:
+  - Admin toggleable image captchas for Tickets, Polls, and File forwarding.
+  - Cloudflare Turnstile support with custom domain setup.
 - **Admin Control Panel**:
   - Native Reply Keyboard buttons with Telegram user/chat pickers.
   - Whitelist mode toggle, ban/unban by Telegram ID or Bale ID.
@@ -64,7 +62,6 @@ It is particularly valuable in environments where direct access to Telegram is r
   - Mandatory channel join enforcement with public/private link resolution.
   - Database backup file export directly inside Telegram chat.
   - Live donation link customization.
-- **Containerized & Automated**: Production-ready `Dockerfile` (with `ffmpeg`), `docker-compose.yml`, and one-line setup scripts.
 
 ---
 
@@ -77,76 +74,37 @@ It is particularly valuable in environments where direct access to Telegram is r
 
 ---
 
-## 🚀 Installation & Deployment Methods
-
-You can deploy the bot using **Docker** (recommended) or **Native Linux/Windows** environments.
+## 🚀 Installation & Deployment
 
 ---
 
-### Method 1: Automated 1-Line Docker Deployment (Fastest) 🐳
+### Method 1: Automated 1-Line Native Linux Setup (Recommended)
 
-If your Linux server does not have Docker or Docker Compose installed yet, this script will automatically install Docker Engine, download the source code, configure `.env`, and start the containers:
-
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup_docker.sh)
-```
-
-If not logged in as root:
-```bash
-sudo -i
-bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup_docker.sh)
-```
-
----
-
-### Method 2: Manual Docker Compose
-
-If Docker and Docker Compose are already installed on your server:
-
-```bash
-# 1. Clone repository
-git clone https://github.com/thehornet2002/tel2bale.git
-cd tel2bale
-
-# 2. Configure environment file
-cp example.env .env
-nano .env
-
-# 3. Build and run in background
-docker compose up -d --build
-```
-
-**Helpful Container Management Commands:**
-```bash
-docker compose logs -f       # View live logs
-docker compose ps            # Check container status
-docker compose restart       # Restart bot container
-docker compose down          # Stop containers
-```
-
-Persistent volumes for `bot.db`, `logs`, `backups`, and `downloads` are mapped to the host directory automatically.
-
----
-
-### Method 3: Automated 1-Line Native Linux Setup (Without Docker)
-
-Installs system dependencies, Python virtual environment, dependencies, `.env` file, and configures a `systemd` background service:
+This automated setup script installs Python, system libraries (`ffmpeg`, `build-essential`, `libjpeg-dev`, `redis-server`), configures the virtual environment, installs dependencies, sets up `.env`, and enables a persistent `systemd` background service:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup.sh)
 ```
 
----
-
-### Method 4: Manual Native Linux Setup (Systemd Service)
-
-#### 1. Install System Packages
+If not logged in as root:
 ```bash
-sudo apt update
-sudo apt install -y python3 python3-venv python3-dev build-essential libjpeg-dev zlib1g-dev git
+sudo -i
+bash <(curl -Ls https://raw.githubusercontent.com/thehornet2002/tel2bale/main/setup.sh)
 ```
 
-#### 2. Clone and Setup Virtual Environment
+---
+
+### Method 2: Manual Native Linux Setup (Systemd Service)
+
+#### 1. Install System Packages & Redis
+```bash
+sudo apt update
+sudo apt install -y python3 python3-venv python3-dev build-essential gcc \
+    libjpeg-dev zlib1g-dev ffmpeg ca-certificates curl jq git redis-server
+sudo systemctl enable --now redis-server
+```
+
+#### 2. Clone Repository & Setup Virtual Environment
 ```bash
 git clone https://github.com/thehornet2002/tel2bale.git
 cd tel2bale
@@ -175,11 +133,11 @@ Create service file `/etc/systemd/system/tel2bale.service`:
 sudo nano /etc/systemd/system/tel2bale.service
 ```
 
-Paste configuration (adjust `/root/tel2bale` path if necessary):
+Paste configuration (adjust `/root/tel2bale` path if installed in another directory):
 ```ini
 [Unit]
-Description=Tel2Bale Bridge Bot Daemon
-After=network.target
+Description=Tel2Bale Telegram to Bale Bridge Bot Daemon
+After=network.target redis-server.service
 
 [Service]
 Type=simple
@@ -193,22 +151,22 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-Enable and start:
+Enable and start service:
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now tel2bale
 ```
 
-**Service Commands:**
+**Service Management Commands:**
 ```bash
-sudo systemctl status tel2bale     # Service status
+sudo systemctl status tel2bale     # Check service status
 sudo systemctl restart tel2bale    # Restart service
-sudo journalctl -u tel2bale -f     # Live journal logs
+sudo journalctl -u tel2bale -f     # View live logs
 ```
 
 ---
 
-### Method 5: Windows (Local Testing & Development)
+### Method 3: Windows (Local Testing & Development)
 
 Run inside PowerShell:
 ```powershell
@@ -257,35 +215,22 @@ SUPPORT_MESSAGE_LIMIT=5
 MAX_USERS=0
 MAX_ACTIVE_USERS=0
 
-# Redis Configuration (Optional for state acceleration)
+# Redis Configuration (Mandatory)
 REDIS_URL=redis://127.0.0.1:6379/0
 
+# Optional Cloudflare Turnstile Captcha
+# CF_TURNSTILE_SITE_KEY=0x4AAAAAA...
+# CF_TURNSTILE_SECRET_KEY=0x4AAAAAA...
+# CF_TURNSTILE_DOMAIN=https://captcha.yourdomain.com
+
 # Optional Telegram Proxy
-TEL_PROXY_SCHEME=
-TEL_PROXY_HOST=
-TEL_PROXY_PORT=
+# TEL_PROXY_SCHEME=
+# TEL_PROXY_HOST=
+# TEL_PROXY_PORT=
 
 # Optional Bale Proxy
-BALE_PROXY=
+# BALE_PROXY=
 ```
-
-### Configuration Parameters
-
-| Variable | Default | Description |
-|---|---|---|
-| `TEL_API_ID` | Required | Telegram API ID from my.telegram.org |
-| `TEL_API_HASH` | Required | Telegram API Hash from my.telegram.org |
-| `TEL_BOT_TOKEN` | Required | Telegram Bot Token from @BotFather |
-| `TEL_ADMIN_IDS` | Required | Comma-separated Telegram user IDs of administrators |
-| `TEL_WHITELIST_ENABLED` | `False` | Enable bot access whitelist mode on startup |
-| `TEL_WHITELIST_USERS` | - | Seed list of allowed Telegram user IDs |
-| `TEL_MAX_FILE_SIZE` | `20` | Max file size in MB for direct Bale upload |
-| `MAX_USERS` | `0` | Max total registered users allowed (0 = unlimited) |
-| `MAX_ACTIVE_USERS` | `0` | Max users with Bale ID/token allowed (0 = unlimited) |
-| `SUPPORT_MESSAGE_LIMIT` | `5` | Maximum pending unanswered tickets allowed per user |
-| `REDIS_URL` | - | Optional Redis connection string (e.g. `redis://127.0.0.1:6379/0`) |
-| `DONATION_LINK` | - | Custom donation URL displayed on start keyboard |
-| `BALE_PROXY` | - | Optional proxy URL for Bale API communication |
 
 ---
 
@@ -293,9 +238,6 @@ BALE_PROXY=
 
 ```text
 tel2bale/
-├── Dockerfile                   # Optimized python:3.12-slim container image
-├── docker-compose.yml           # Multi-container Compose configuration with volumes
-├── setup_docker.sh              # 1-line automated Docker deployment script
 ├── setup.sh                     # 1-line automated native Linux systemd setup script
 ├── main.py                      # Bot entry point, startup procedures, and command setup
 ├── config.py                    # Environment management with async locking and validation
@@ -322,12 +264,16 @@ tel2bale/
 │           ├── admin_handler.py
 │           ├── forward_handler.py
 │           ├── captcha_handler.py
+│           ├── media_handler.py
 │           └── user_handler.py
 │
 ├── services/
 │   ├── bale_service.py          # Bale API client with retry mechanism and binary handling
 │   ├── s3_service.py            # Arvan Cloud S3 integration and presigned URL generation
 │   ├── quota_service.py         # Atomic download quota verification and rollback
+│   ├── downloader_service.py    # Multi-platform media downloader (YouTube, Spotify, Instagram)
+│   ├── cookie_service.py        # Global Netscape cookies manager
+│   ├── turnstile_service.py     # Cloudflare Turnstile verification integration
 │   └── captcha_service.py       # High-security sinusoidal distorted image captcha engine
 │
 ├── utils/
@@ -350,7 +296,8 @@ Administrators can access the management panel at any time by sending `/admin` o
 - 🎫 **Support Tickets**: Browse tickets filtered by status (Pending, Answered, All), view details, and reply directly.
 - 🗂 **Ticket Categories**: Add categories (Normal or Anonymous modes) and archive/delete them.
 - 📊 **Polls Management**: Create surveys with custom questions and choices, open/close status, and inspect results.
-- 🔐 **Captcha Settings**: Toggle anti-spam image captchas individually for Tickets, Polls, and File uploads.
+- 🔐 **Captcha Settings**: Toggle image captchas individually for Tickets, Polls, File uploads, and Media downloads, plus Cloudflare domain/key configuration.
+- 🍪 **Cookie Management**: Upload global `cookies.txt` for YouTube and Instagram bot bypass.
 - 🛡️ **Whitelist System**: Restrict bot usage to approved users, add/remove IDs, or toggle whitelist enforcement.
 - 🚫 **Ban & Unban**: Block users by Telegram ID or Bale ID using native user picker buttons.
 - ➕/➖ **Administrator Management**: Promote or demote admins with persistent `.env` updating.
@@ -364,8 +311,7 @@ Administrators can access the management panel at any time by sending `/admin` o
 
 ## 🧪 Testing & Verification
 
-The project includes an integrated verification test covering URL parsing, anti-SSRF checks, quota reservation, database transactions, whitelist rules, Redis connectivity, and captcha generation:
-
+Run the test suite:
 ```bash
 python tests/test_self_check.py
 ```
@@ -374,4 +320,4 @@ python tests/test_self_check.py
 
 ## 📜 License
 
-This project is licensed under the **[MIT License](LICENSE)**.
+Distributed under the **[MIT License](LICENSE)**.

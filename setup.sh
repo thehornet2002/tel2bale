@@ -7,337 +7,168 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m'
+
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}   🚀 TEL2BALE — Native Setup & Deploy  ${NC}"
+echo -e "${GREEN}========================================${NC}"
 
 # 0. Check for root privileges
 if [ "$EUID" -ne 0 ]; then
   echo -e "${RED}❌ Error: Please run this script with root (sudo) privileges${NC}"
-  echo -e "${YELLOW}Example: sudo bash setup.sh${NC}"
+  echo -e "${YELLOW}Usage: sudo bash setup.sh${NC}"
   exit 1
 fi
 
-PROJECT_DIR=$(pwd)
-SERVICE_NAME="Tel2Bale"
+SERVICE_NAME="tel2bale"
 GITHUB_REPO="thehornet2002/tel2bale"
 
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}   Telegram to Bale Bridge Bot Setup    ${NC}"
-echo -e "${GREEN}========================================${NC}"
+# ==========================================
+# 1. Prepare Directory & Fetch Source
+# ==========================================
+echo -e "\n${YELLOW}Step 1: Preparing directory and fetching source code...${NC}"
+
+if [ -f "main.py" ] && [ -f "requirements.txt" ]; then
+    APP_DIR="$(pwd)"
+    echo -e "${GREEN}✓ Running inside project directory: $APP_DIR${NC}"
+else
+    APP_DIR="/root/tel2bale"
+    mkdir -p "$APP_DIR"
+    cd "$APP_DIR"
+    if [ -d ".git" ]; then
+        echo -e "${BLUE}Updating existing repository...${NC}"
+        git pull origin main 2>/dev/null || true
+    else
+        echo -e "${BLUE}Cloning repository from GitHub...${NC}"
+        apt-get update -qq 2>/dev/null || true
+        apt-get install -y -qq git curl jq 2>/dev/null || apt-get install -y git curl jq
+        git clone "https://github.com/$GITHUB_REPO.git" "$APP_DIR" 2>/dev/null || {
+            echo -e "${YELLOW}Git clone failed, downloading release archive...${NC}"
+            curl -sSL "https://github.com/$GITHUB_REPO/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$APP_DIR"
+        }
+    fi
+fi
+
+cd "$APP_DIR"
+mkdir -p logs backups downloads cookies
 
 # ==========================================
-# 1. Download Latest Release from GitHub
+# 2. Install System Dependencies & Tools
 # ==========================================
-echo -e "\n${YELLOW}Step 1: Downloading latest release...${NC}"
-
-mkdir -p Tel2Bale
-cd Tel2Bale
-
-# Install necessary tools
-echo -e "${BLUE}Installing required tools...${NC}"
+echo -e "\n${YELLOW}Step 2: Installing system packages and development libraries...${NC}"
 apt-get update -qq 2>/dev/null || apt-get update
-apt-get install -y -qq curl jq tar wget pkg-config git 2>/dev/null || apt-get install -y curl jq tar wget pkg-config git
-
-echo -e "${BLUE}Fetching latest release info from GitHub...${NC}"
-
-# Download with retry
-MAX_ATTEMPTS=3
-ATTEMPT=1
-LATEST_TAR_URL=""
-
-while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-    LATEST_TAR_URL=$(curl -s --connect-timeout 10 https://api.github.com/repos/$GITHUB_REPO/releases/latest 2>/dev/null | jq -r '.tarball_url' 2>/dev/null || echo "null")
-    
-    if [ "$LATEST_TAR_URL" != "null" ] && [ -n "$LATEST_TAR_URL" ]; then
-        break
-    fi
-    
-    echo -e "${YELLOW}Attempt $ATTEMPT failed, retrying...${NC}"
-    ATTEMPT=$((ATTEMPT + 1))
-    sleep 2
-done
-
-if [ "$LATEST_TAR_URL" == "null" ] || [ -z "$LATEST_TAR_URL" ]; then
-    echo -e "${RED}❌ Error: Could not fetch the latest release${NC}"
-    echo -e "${YELLOW}Make sure:${NC}"
-    echo -e "${YELLOW}  - Repository is PUBLIC${NC}"
-    echo -e "${YELLOW}  - A Release is published${NC}"
-    echo -e "${YELLOW}  - Internet connection is active${NC}"
-    exit 1
-fi
-
-echo -e "${BLUE}Downloading source code...${NC}"
-if ! wget -q --timeout=30 -O release.tar.gz "$LATEST_TAR_URL"; then
-    echo -e "${RED}❌ Error: Download failed${NC}"
-    exit 1
-fi
-
-echo -e "${BLUE}Extracting files...${NC}"
-tar -xzf release.tar.gz --strip-components=1 2>/dev/null
-rm -f release.tar.gz
-
-echo -e "${GREEN}✓ Latest release successfully downloaded and extracted${NC}"
-
-# ==========================================
-# 2. Install Python 3.12 or 3.11
-# ==========================================
-echo -e "\n${YELLOW}Step 2: Installing Python...${NC}"
-
-apt-get update -qq 2>/dev/null || true
-
-# First check which version is available
-PYTHON_VERSION=""
-if command -v python3.12 &>/dev/null; then
-    PYTHON_VERSION="3.12"
-    echo -e "${GREEN}✓ Python 3.12 already installed${NC}"
-elif command -v python3.11 &>/dev/null; then
-    PYTHON_VERSION="3.11"
-    echo -e "${GREEN}✓ Python 3.11 already installed${NC}"
-elif command -v python3.10 &>/dev/null; then
-    PYTHON_VERSION="3.10"
-    echo -e "${GREEN}✓ Python 3.10 already installed${NC}"
-else
-    echo -e "${BLUE}Python not found, installing...${NC}"
-    
-    apt-get install -y software-properties-common 2>/dev/null || true
-    
-    # Try to install Python 3.12
-    if apt-cache search python3.12 2>/dev/null | grep -q python3.12; then
-        apt-get install -y python3.12 python3.12-venv python3-pip 2>/dev/null
-        PYTHON_VERSION="3.12"
-    # If Python 3.12 not available, try 3.11
-    elif apt-cache search python3.11 2>/dev/null | grep -q python3.11; then
-        apt-get install -y python3.11 python3.11-venv python3-pip 2>/dev/null
-        PYTHON_VERSION="3.11"
-    else
-        # Last resort - default Python 3
-        apt-get install -y python3 python3-venv python3-pip 2>/dev/null
-        PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
-    fi
-fi
-
-if [ -z "$PYTHON_VERSION" ]; then
-    echo -e "${RED}❌ Error: Python installation failed${NC}"
-    exit 1
-fi
-
-PYTHON_EXEC="python$PYTHON_VERSION"
-
-if ! command -v $PYTHON_EXEC &>/dev/null; then
-    PYTHON_EXEC="python3"
-fi
-
-echo -e "${GREEN}✓ Using: $($PYTHON_EXEC --version)${NC}"
-
-# Install venv package for the specific Python version
-echo -e "${BLUE}Installing venv package for Python $PYTHON_VERSION...${NC}"
-if [ "$PYTHON_VERSION" != "3" ]; then
-    apt-get install -y python${PYTHON_VERSION}-venv 2>/dev/null || {
-        echo -e "${YELLOW}Falling back to python3-venv...${NC}"
-        apt-get install -y python3-venv 2>/dev/null
-    }
-else
-    apt-get install -y python3-venv 2>/dev/null
-fi
-
-# ==========================================
-# 3. Virtual Environment Setup
-# ==========================================
-echo -e "\n${YELLOW}Step 3: Creating virtual environment...${NC}"
-
-cd "$PROJECT_DIR/Tel2Bale"
-
-if [ ! -d "venv" ]; then
-    if $PYTHON_EXEC -m venv venv 2>/dev/null; then
-        echo -e "${GREEN}✓ Virtual environment created${NC}"
-    else
-        echo -e "${RED}❌ Error: Failed to create virtual environment${NC}"
-        echo -e "${YELLOW}Trying with --without-pip option...${NC}"
-        $PYTHON_EXEC -m venv venv --without-pip
-        echo -e "${GREEN}✓ Virtual environment created (without pip)${NC}"
-    fi
-else
-    echo -e "${GREEN}✓ Virtual environment already exists${NC}"
-fi
-
-# ==========================================
-# 4. Install Build Tools and Development Headers
-# ==========================================
-echo -e "\n${YELLOW}Step 4: Installing build tools...${NC}"
-
-echo -e "${BLUE}Installing build-essential, image libs, ffmpeg, and Python development headers...${NC}"
-apt-get install -y build-essential libjpeg-dev zlib1g-dev ffmpeg 2>/dev/null || {
-    echo -e "${YELLOW}Retrying apt-get update...${NC}"
-    apt-get update && apt-get install -y build-essential libjpeg-dev zlib1g-dev ffmpeg
+apt-get install -y build-essential gcc python3 python3-venv python3-dev \
+    libjpeg-dev zlib1g-dev ffmpeg ca-certificates curl jq git redis-server 2>/dev/null || {
+    echo -e "${YELLOW}Retrying package installation...${NC}"
+    apt-get update && apt-get install -y build-essential gcc python3 python3-venv python3-dev \
+        libjpeg-dev zlib1g-dev ffmpeg ca-certificates curl jq git redis-server
 }
-
-if [ "$PYTHON_VERSION" != "3" ]; then
-    apt-get install -y python${PYTHON_VERSION}-dev 2>/dev/null || apt-get install -y python3-dev
-else
-    apt-get install -y python3-dev 2>/dev/null
-fi
-
-echo -e "${GREEN}✓ Build tools installed${NC}"
+echo -e "${GREEN}✓ System dependencies installed successfully.${NC}"
 
 # ==========================================
-# 4.5. Install, Harden and Start Redis Server
+# 3. Configure, Harden & Start Redis Server
 # ==========================================
-echo -e "\n${YELLOW}Step 4.5: Installing and configuring Redis Server...${NC}"
-apt-get install -y redis-server 2>/dev/null || apt-get install -y redis 2>/dev/null || true
-
-# Security hardening against CVE-2025-49844 (Disable unused Lua scripting execution)
+echo -e "\n${YELLOW}Step 3: Configuring and hardening Redis Server...${NC}"
 if [ -f "/etc/redis/redis.conf" ]; then
     grep -q "rename-command EVAL " /etc/redis/redis.conf || echo 'rename-command EVAL ""' >> /etc/redis/redis.conf
     grep -q "rename-command EVALSHA " /etc/redis/redis.conf || echo 'rename-command EVALSHA ""' >> /etc/redis/redis.conf
     grep -q "rename-command SCRIPT " /etc/redis/redis.conf || echo 'rename-command SCRIPT ""' >> /etc/redis/redis.conf
 fi
-
 systemctl enable --now redis-server 2>/dev/null || systemctl enable --now redis 2>/dev/null || true
-echo -e "${GREEN}✓ Redis server installed, hardened, and active${NC}"
+echo -e "${GREEN}✓ Redis server active and hardened against Lua execution vulnerabilities.${NC}"
 
 # ==========================================
-# 5. Install Python Dependencies
+# 4. Virtual Environment & Python Packages
 # ==========================================
-echo -e "\n${YELLOW}Step 5: Installing Python dependencies...${NC}"
+echo -e "\n${YELLOW}Step 4: Setting up Python virtual environment...${NC}"
+if [ ! -d ".venv" ]; then
+    python3 -m venv .venv
+fi
 
-if [ -f "requirements.txt" ]; then
-    source venv/bin/activate
-    
-    echo -e "${BLUE}Upgrading pip, setuptools, and wheel...${NC}"
-    pip install --upgrade pip setuptools wheel 2>&1 | grep -v "already satisfied" || true
-    
-    echo -e "${BLUE}Installing requirements.txt (this may take a while)...${NC}"
-    if pip install -r requirements.txt 2>&1 | tee /tmp/pip_install.log; then
-        echo -e "${GREEN}✓ Dependencies installed successfully${NC}"
-    else
-        echo -e "${RED}❌ Error during dependency installation${NC}"
-        echo -e "${YELLOW}Last 20 lines of error:${NC}"
-        tail -20 /tmp/pip_install.log
-        deactivate
-        exit 1
-    fi
-    
-    deactivate
+source .venv/bin/activate
+echo -e "${BLUE}Upgrading pip and wheel...${NC}"
+pip install --upgrade pip setuptools wheel -q
+
+echo -e "${BLUE}Installing requirements.txt (including yt-dlp, kurigram, Pillow, etc.)...${NC}"
+pip install -r requirements.txt
+deactivate
+echo -e "${GREEN}✓ Python packages installed successfully.${NC}"
+
+# ==========================================
+# 5. Configure .env Environment File
+# ==========================================
+echo -e "\n${YELLOW}Step 5: Configuring environment variables (.env)...${NC}"
+if [ -f ".env" ]; then
+    echo -e "${CYAN}.env file already exists.${NC}"
+    read -p "Do you want to reconfigure it? (y/N): " RECONFIG
+    RECONFIG=${RECONFIG:-n}
 else
-    echo -e "${RED}❌ Error: requirements.txt not found!${NC}"
-    exit 1
+    RECONFIG="y"
 fi
 
-# ==========================================
-# 6. Generate .env Configuration File
-# ==========================================
-echo -e "\n${YELLOW}Step 6: Configuration setup (.env)${NC}"
+if [[ "$RECONFIG" =~ ^[Yy]$ ]]; then
+    read -p "Enter TEL_API_ID: " INPUT_API_ID
+    read -p "Enter TEL_API_HASH: " INPUT_API_HASH
+    read -p "Enter TEL_BOT_TOKEN: " INPUT_BOT_TOKEN
+    read -p "Enter TEL_ADMIN_IDS (comma-separated): " INPUT_ADMIN_IDS
 
-read -p "Enter TEL_API_ID: " INPUT_API_ID
-read -p "Enter TEL_API_HASH: " INPUT_API_HASH
-read -p "Enter TEL_BOT_TOKEN: " INPUT_BOT_TOKEN
-read -p "Enter TEL_ADMIN_IDS (comma-separated): " INPUT_ADMIN_IDS
+    echo ""
+    read -p "Enter TEL_MAX_FILE_SIZE (MB) [Default: 20]: " INPUT_MAX_FILE_SIZE
+    INPUT_MAX_FILE_SIZE=${INPUT_MAX_FILE_SIZE:-20}
 
-echo ""
-echo -e "${YELLOW}--- Maximum File Size Configuration ---${NC}"
-read -p "Enter TEL_MAX_FILE_SIZE [Default: 20]: " INPUT_MAX_FILE_SIZE
-INPUT_MAX_FILE_SIZE=${INPUT_MAX_FILE_SIZE:-20}
+    read -p "Enter DONATION_LINK [Default: https://daramet.com/Hornet2002]: " INPUT_DONATION
+    INPUT_DONATION=${INPUT_DONATION:-https://daramet.com/Hornet2002}
 
-if ! [[ "$INPUT_MAX_FILE_SIZE" =~ ^[0-9]+$ ]]; then
-    echo -e "${RED}Invalid numeric input. Using default (20)${NC}"
-    INPUT_MAX_FILE_SIZE=20
-fi
+    echo ""
+    read -p "Enter REDIS_URL [Default: redis://127.0.0.1:6379/0]: " INPUT_REDIS_URL
+    INPUT_REDIS_URL=${INPUT_REDIS_URL:-redis://127.0.0.1:6379/0}
 
-echo ""
-echo -e "${RED}⚠ WARNING: IN_MEMORY CONFIGURATION${NC}"
-echo -e "${YELLOW}Setting TEL_IN_MEMORY to True means files will be held entirely in RAM.${NC}"
-
-read -p "Do you want to enable TEL_IN_MEMORY? (True/False) [Default: False]: " INPUT_IN_MEMORY
-INPUT_IN_MEMORY=${INPUT_IN_MEMORY:-False}
-
-if [[ "$INPUT_IN_MEMORY" != "True" && "$INPUT_IN_MEMORY" != "False" ]]; then
-    echo -e "${RED}Invalid input. Using default (False)${NC}"
-    INPUT_IN_MEMORY="False"
-fi
-
-EXTRACTED_START="Welcome to the bot!"
-EXTRACTED_HELP="Here is the help guide."
-
-if [ -f "example.env" ]; then
-    TEMP_START=$(grep '^TEL_START_TXT=' example.env 2>/dev/null | sed 's/^TEL_START_TXT=//' | tr -d '"' | tr -d "'" || echo "")
-    TEMP_HELP=$(grep '^TEL_HELP_TXT=' example.env 2>/dev/null | sed 's/^TEL_HELP_TXT=//' | tr -d '"' | tr -d "'" || echo "")
-
-    [ -n "$TEMP_START" ] && EXTRACTED_START="$TEMP_START"
-    [ -n "$TEMP_HELP" ] && EXTRACTED_HELP="$TEMP_HELP"
-fi
-
-echo ""
-echo -e "${YELLOW}--- User Limits Configuration ---${NC}"
-read -p "Max total users allowed to start the bot (0 = unlimited) [Default: 0]: " INPUT_MAX_USERS
-INPUT_MAX_USERS=${INPUT_MAX_USERS:-0}
-if ! [[ "$INPUT_MAX_USERS" =~ ^[0-9]+$ ]]; then
-    echo -e "${RED}Invalid numeric input. Using default (0 = unlimited)${NC}"
-    INPUT_MAX_USERS=0
-fi
-
-read -p "Max active users - users who set bale_id or bale_token (0 = unlimited) [Default: 0]: " INPUT_MAX_ACTIVE_USERS
-INPUT_MAX_ACTIVE_USERS=${INPUT_MAX_ACTIVE_USERS:-0}
-if ! [[ "$INPUT_MAX_ACTIVE_USERS" =~ ^[0-9]+$ ]]; then
-    echo -e "${RED}Invalid numeric input. Using default (0 = unlimited)${NC}"
-    INPUT_MAX_ACTIVE_USERS=0
-fi
-
-echo ""
-echo -e "${YELLOW}--- Ticket & Support Limits ---${NC}"
-read -p "Enter max pending tickets per user [Default: 5]: " INPUT_SUPPORT_LIMIT
-INPUT_SUPPORT_LIMIT=${INPUT_SUPPORT_LIMIT:-5}
-if ! [[ "$INPUT_SUPPORT_LIMIT" =~ ^[0-9]+$ ]]; then
-    INPUT_SUPPORT_LIMIT=5
-fi
-
-echo ""
-echo -e "${YELLOW}--- Redis Configuration (Mandatory) ---${NC}"
-read -p "Enter REDIS_URL [Default: redis://127.0.0.1:6379/0]: " INPUT_REDIS_URL
-INPUT_REDIS_URL=${INPUT_REDIS_URL:-redis://127.0.0.1:6379/0}
-
-cat <<EOF > .env
+    cat <<EOF > .env
 TEL_API_ID=$INPUT_API_ID
 TEL_API_HASH=$INPUT_API_HASH
 TEL_BOT_TOKEN=$INPUT_BOT_TOKEN
 TEL_ADMIN_IDS=$INPUT_ADMIN_IDS
 
-TEL_START_TXT="$EXTRACTED_START"
-TEL_HELP_TXT="$EXTRACTED_HELP"
+TEL_START_TXT="به ربات انتقال پیام تلگرام به بله خوش آمدید."
+TEL_HELP_TXT="ابتدا شناسه بله و توکن ربات بله خود را تنظیم کنید، سپس پیام‌ها را ارسال کنید."
 
 TEL_ADS_CHANNELS=
-
 TEL_MAX_FILE_SIZE=$INPUT_MAX_FILE_SIZE
-TEL_IN_MEMORY=$INPUT_IN_MEMORY
+TEL_IN_MEMORY=False
 
-TEL_PROXY_SCHEME=
-TEL_PROXY_HOST=
-TEL_PROXY_PORT=
+DONATION_LINK=$INPUT_DONATION
+SUPPORT_MESSAGE_LIMIT=5
 
-SUPPORT_MESSAGE_LIMIT=$INPUT_SUPPORT_LIMIT
-
-MAX_USERS=$INPUT_MAX_USERS
-MAX_ACTIVE_USERS=$INPUT_MAX_ACTIVE_USERS
+MAX_USERS=0
+MAX_ACTIVE_USERS=0
 
 REDIS_URL=$INPUT_REDIS_URL
+
+# TEL_PROXY_SCHEME=socks5
+# TEL_PROXY_HOST=127.0.0.1
+# TEL_PROXY_PORT=2080
+# BALE_PROXY=
 EOF
-
-echo -e "${GREEN}✓ .env file created successfully${NC}"
+    echo -e "${GREEN}✓ .env file created successfully.${NC}"
+fi
 
 # ==========================================
-# 7. Create and Start Systemd Service
+# 6. Create & Start Systemd Service
 # ==========================================
-echo -e "\n${YELLOW}Step 7: Creating systemd service...${NC}"
-
+echo -e "\n${YELLOW}Step 6: Setting up systemd background service...${NC}"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 cat <<EOF > "$SERVICE_FILE"
 [Unit]
-Description=Telegram to Bale Bridge Bot Daemon
-After=network.target
+Description=Tel2Bale Telegram to Bale Bridge Bot Daemon
+After=network.target redis-server.service
 
 [Service]
+Type=simple
 User=root
-WorkingDirectory=$PROJECT_DIR/Tel2Bale
-ExecStart=$PROJECT_DIR/Tel2Bale/venv/bin/python $PROJECT_DIR/Tel2Bale/main.py
+WorkingDirectory=$APP_DIR
+ExecStart=$APP_DIR/.venv/bin/python $APP_DIR/main.py
 Restart=always
 RestartSec=5
 StartLimitIntervalSec=0
@@ -351,24 +182,15 @@ EOF
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
 
-echo -e "${BLUE}Starting service...${NC}"
-if systemctl restart "$SERVICE_NAME" 2>/dev/null; then
-    echo -e "${GREEN}✓ Service started successfully${NC}"
-else
-    echo -e "${RED}⚠ Error starting service${NC}"
-    echo -e "${YELLOW}Use this command to see details:${NC}"
-    echo -e "${BLUE}journalctl -u $SERVICE_NAME -n 20${NC}"
-fi
+echo -e "${BLUE}Starting service $SERVICE_NAME...${NC}"
+systemctl restart "$SERVICE_NAME"
 
-echo -e "\n${GREEN}════════════════════════════════════════${NC}"
-echo -e "${GREEN}  ✓ Installation completed successfully!  ${NC}"
-echo -e "${GREEN}════════════════════════════════════════${NC}"
+echo -e "\n${GREEN}════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}  ✓ Installation & Startup completed successfully!  ${NC}"
+echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
 
-echo -e "\n${BLUE}Useful commands:${NC}"
-echo -e "🔹 Bot status:      ${YELLOW}sudo systemctl status $SERVICE_NAME${NC}"
-echo -e "🔹 View live logs:  ${YELLOW}sudo journalctl -u $SERVICE_NAME -f${NC}"
-echo -e "🔹 Last 20 lines:   ${YELLOW}sudo journalctl -u $SERVICE_NAME -n 20${NC}"
-echo -e "🔹 Stop bot:        ${YELLOW}sudo systemctl stop $SERVICE_NAME${NC}"
-echo -e "🔹 Restart bot:     ${YELLOW}sudo systemctl restart $SERVICE_NAME${NC}"
-
-echo -e "\n${YELLOW}Note: To change settings later, edit the .env file and restart the bot${NC}"
+echo -e "\n${CYAN}Helpful management commands:${NC}"
+echo -e "🔹 Check status:      ${YELLOW}systemctl status $SERVICE_NAME${NC}"
+echo -e "🔹 View live logs:    ${YELLOW}journalctl -u $SERVICE_NAME -f${NC}"
+echo -e "🔹 Restart bot:       ${YELLOW}systemctl restart $SERVICE_NAME${NC}"
+echo -e "🔹 Stop bot:          ${YELLOW}systemctl stop $SERVICE_NAME${NC}"
