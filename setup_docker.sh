@@ -175,8 +175,15 @@ fi
 
 # 5. Build & Launch Docker Containers
 echo -e "\n${YELLOW}Step 5: Building images and starting containers...${NC}"
+
+# Bypass port 53 DNS redirection for Docker bridge subnets (e.g. masterdnsvpn coexistence)
+iptables -t nat -I PREROUTING 1 -s 172.16.0.0/12 -p udp --dport 53 -j ACCEPT 2>/dev/null || true
+iptables -t nat -I PREROUTING 1 -s 172.16.0.0/12 -p tcp --dport 53 -j ACCEPT 2>/dev/null || true
+iptables -I FORWARD -s 172.16.0.0/12 -j ACCEPT 2>/dev/null || true
+
 $DOCKER_COMPOSE_CMD down 2>/dev/null || true
-$DOCKER_COMPOSE_CMD up -d --build
+docker build --network=host -t tel2bale:latest .
+$DOCKER_COMPOSE_CMD up -d
 
 echo -e "\n${GREEN}════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  ✓ Deployment completed successfully!             ${NC}"
