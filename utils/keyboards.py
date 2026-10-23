@@ -361,36 +361,50 @@ def build_captcha_settings_keyboard(
     poll_on: bool,
     file_on: bool,
     download_on: bool,
-    turnstile_domain: str = "",
+    difficulty: int = 3,
+    length: int = 5,
 ) -> InlineKeyboardMarkup:
-    """Captcha security toggle keyboard for admin."""
-    domain_status = turnstile_domain if turnstile_domain else "تنظیم نشده"
+    """Comprehensive InlineKeyboardMarkup for admin captcha settings."""
+    diff_names = {
+        1: "خیلی آسان",
+        2: "آسان",
+        3: "متوسط",
+        4: "سخت",
+        5: "خیلی سخت",
+    }
+    diff_row_1 = []
+    diff_row_2 = []
+
+    for d in (1, 2, 3):
+        prefix = "🔘 " if d == difficulty else ""
+        diff_row_1.append(InlineKeyboardButton(text=f"{prefix}سطح {d} ({diff_names[d]})", callback_data=f"adm_set_diff:{d}"))
+
+    for d in (4, 5):
+        prefix = "🔘 " if d == difficulty else ""
+        diff_row_2.append(InlineKeyboardButton(text=f"{prefix}سطح {d} ({diff_names[d]})", callback_data=f"adm_set_diff:{d}"))
+
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(
-            text=f"🎫 کپچای تیکت: {'🟢 فعال' if ticket_on else '🔴 غیرفعال'}",
-            callback_data="adm_toggle_captcha_ticket"
-        )],
-        [InlineKeyboardButton(
-            text=f"📊 کپچای نظرسنجی: {'🟢 فعال' if poll_on else '🔴 غیرفعال'}",
-            callback_data="adm_toggle_captcha_poll"
-        )],
-        [InlineKeyboardButton(
-            text=f"📁 کپچای ارسال فایل: {'🟢 فعال' if file_on else '🔴 غیرفعال'}",
-            callback_data="adm_toggle_captcha_file"
-        )],
-        [InlineKeyboardButton(
-            text=f"📥 کپچای دانلود رسانه: {'🟢 فعال' if download_on else '🔴 غیرفعال'}",
-            callback_data="adm_toggle_captcha_download"
-        )],
-        [InlineKeyboardButton(
-            text=f"🌐 تنظیم دامنه کلودفلر ({domain_status[:20]})",
-            callback_data="adm_set_turnstile_domain"
-        )],
-        [InlineKeyboardButton(
-            text="🔑 تنظیم کلیدهای Turnstile",
-            callback_data="adm_set_turnstile_keys"
-        )],
-        [InlineKeyboardButton(text="🔙 بازگشت به مدیریت", callback_data="back_to_management")]
+        [
+            InlineKeyboardButton(text=f"🎫 تیکت: {'🟢 فعال' if ticket_on else '🔴 غیرفعال'}", callback_data="adm_toggle_captcha_ticket"),
+            InlineKeyboardButton(text=f"📊 نظرسنجی: {'🟢 فعال' if poll_on else '🔴 غیرفعال'}", callback_data="adm_toggle_captcha_poll"),
+        ],
+        [
+            InlineKeyboardButton(text=f"📁 ارسال فایل: {'🟢 فعال' if file_on else '🔴 غیرفعال'}", callback_data="adm_toggle_captcha_file"),
+            InlineKeyboardButton(text=f"📥 دانلود رسانه: {'🟢 فعال' if download_on else '🔴 غیرفعال'}", callback_data="adm_toggle_captcha_download"),
+        ],
+        [
+            InlineKeyboardButton(text="🎚 سطح دشواری تصویر (۱ تا ۵):", callback_data="noop"),
+        ],
+        diff_row_1,
+        diff_row_2,
+        [
+            InlineKeyboardButton(text="➖ کاهش کاراکتر", callback_data="adm_cap_len:dec"),
+            InlineKeyboardButton(text=f"🔢 {length} کاراکتر", callback_data="noop"),
+            InlineKeyboardButton(text="➕ افزایش کاراکتر", callback_data="adm_cap_len:inc"),
+        ],
+        [
+            InlineKeyboardButton(text="🔙 بازگشت به مدیریت", callback_data="back_to_management"),
+        ]
     ])
 
 
@@ -451,13 +465,5 @@ def build_admin_cookie_keyboard(has_cookie: bool) -> InlineKeyboardMarkup:
     ])
     return InlineKeyboardMarkup(rows)
 
-
-def build_turnstile_verify_keyboard(turnstile_url: str, token: str) -> InlineKeyboardMarkup:
-    """Buttons for Cloudflare Turnstile verification."""
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(text="🌐 حل تست امنیتی Cloudflare", url=turnstile_url)],
-        [InlineKeyboardButton(text="✅ تایید و ادامه دانلود", callback_data=f"cf_verified:{token}")],
-        [InlineKeyboardButton(text="🔙 انصراف", callback_data=f"dl_cancel:{token}")],
-    ])
 
 

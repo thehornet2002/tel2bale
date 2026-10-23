@@ -201,23 +201,33 @@ async def admin_captcha_settings_view(message: Message, user_id: int) -> None:
     poll_on = model_async.is_captcha_poll_enabled()
     file_on = model_async.is_captcha_file_enabled()
     download_on = model_async.is_captcha_download_enabled()
-    cf_domain = config.CF_TURNSTILE_DOMAIN or ""
+    difficulty = model_async.get_captcha_difficulty()
+    length = model_async.get_captcha_length()
+
+    diff_labels = {1: "خیلی آسان", 2: "آسان", 3: "متوسط", 4: "سخت", 5: "خیلی سخت"}
 
     text = (
         "🔐 **تنظیمات سیستم امنیتی کپچا (Captcha)**\n\n"
-        "در این بخش می‌توانید وضعیت کپچا را برای بخش‌های مختلف به صورت جداگانه تعیین کنید:\n\n"
+        "در این بخش می‌توانید وضعیت فعال‌بودن، سطح دشواری و تعداد کاراکترهای کپچا را به صورت زنده تنظیم کنید:\n\n"
         f"• **کپچای تیکت**: {'🟢 فعال' if ticket_on else '🔴 غیرفعال'}\n"
         f"• **کپچای نظرسنجی**: {'🟢 فعال' if poll_on else '🔴 غیرفعال'}\n"
         f"• **کپچای ارسال فایل**: {'🟢 فعال' if file_on else '🔴 غیرفعال'}\n"
-        f"• **کپچای دانلود رسانه (یوتیوب، اسپاتیفای و...)**: {'🟢 فعال' if download_on else '🔴 غیرفعال'}\n\n"
-        f"🌐 دامنه کلودفلر ثبت‌شده: `{cf_domain or 'تنظیم نشده'}`\n"
-        f"🔑 کلید SiteKey: `{config.CF_TURNSTILE_SITE_KEY or 'تنظیم نشده'}`\n\n"
-        "برای تغییر وضعیت روی دکمه مربوطه کلیک کنید:"
+        f"• **کپچای دانلود رسانه**: {'🟢 فعال' if download_on else '🔴 غیرفعال'}\n\n"
+        f"🎚 **سطح سختی تصویر**: **سطح {difficulty} ({diff_labels.get(difficulty, 'متوسط')})**\n"
+        f"🔢 **طول کاراکترها**: **{length} رقم/حرف**\n"
+        "⛔️ **قانون جریمه**: در صورت ۵ پاسخ اشتباه یا انقضای کد، کاربر ۲۰ دقیقه مسدود می‌شود.\n\n"
+        "برای تغییر هر بخش از دکمه‌های شیشه‌ای زیر استفاده نمایید:"
     )
     kb = build_captcha_settings_keyboard(
-        ticket_on, poll_on, file_on, download_on, turnstile_domain=cf_domain
+        ticket_on=ticket_on,
+        poll_on=poll_on,
+        file_on=file_on,
+        download_on=download_on,
+        difficulty=difficulty,
+        length=length,
     )
-    if getattr(message, "outgoing", False) or getattr(getattr(message, "from_user", None), "is_self", False):
+    # If called from inline callback query (edit_text)
+    if hasattr(message, "edit_text") and (getattr(message, "outgoing", False) or getattr(getattr(message, "from_user", None), "is_self", False)):
         try:
             await message.edit_text(text, reply_markup=kb)
             return
@@ -255,25 +265,16 @@ async def admin_toggle_captcha_download(message: Message, user_id: int) -> None:
 
 
 @admin_required
-async def admin_set_turnstile_domain_prompt(message: Message, user_id: int) -> None:
-    await model_async.set_state(user_id, "waiting_turnstile_domain")
-    await message.reply_text(
-        "🌐 **تنظیم دامنه Cloudflare Turnstile:**\n\n"
-        "لطفاً دامنه یا آدرس صفحه کپچای کلودفلر خود را ارسال فرمایید:\n"
-        "*(مثال: `https://captcha.yourdomain.com`)*",
-        reply_markup=build_cancel_reply_keyboard("🔙 انصراف و بازگشت به مدیریت")
-    )
+async def admin_set_captcha_difficulty(message: Message, user_id: int, difficulty: int) -> None:
+    await model_async.set_captcha_difficulty(difficulty)
+    await admin_captcha_settings_view(message, user_id)
 
 
 @admin_required
-async def admin_set_turnstile_keys_prompt(message: Message, user_id: int) -> None:
-    await model_async.set_state(user_id, "waiting_turnstile_keys")
-    await message.reply_text(
-        "🔑 **تنظیم کلیدهای Cloudflare Turnstile:**\n\n"
-        "لطفاً Site Key و Secret Key را در یک پیام با فاصله یا در دو خط جداگانه ارسال فرمایید:\n\n"
-        "فرمت:\n"
-        "`<SITE_KEY> <SECRET_KEY>`\n\n"
-        "*(مثال: `0x4AAAAAA... 0x4AAAAAA...`)*",
-        reply_markup=build_cancel_reply_keyboard("🔙 انصراف و بازگشت به مدیریت")
-    )
+async def admin_change_captcha_length(message: Message, user_id: int, delta: int) -> None:
+    current = model_async.get_captcha_length()
+    new_len = max(4, min(10, current + delta))
+    await model_async.set_captcha_length(new_len)
+    await admin_captcha_settings_view(message, user_id)
+
 

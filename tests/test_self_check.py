@@ -393,14 +393,18 @@ async def test_downloader_and_cookies():
     assert status_after["has_cookie"] is False
 
 
-async def test_prerequisites_and_turnstile():
+async def test_prerequisites_and_captcha():
     from handlers.handler_helpers.message_helpers.media_handler import check_user_prerequisites
-    from services.turnstile_service import (
-        is_turnstile_configured,
-        build_turnstile_url,
+    from services.captcha_service import generate_captcha
+    from handlers.handler_helpers.message_helpers.captcha_handler import (
+        record_captcha_failure,
+        check_user_captcha_lock,
+        reset_captcha_failures,
     )
+    from handlers.handler_helpers.callback_helpers.admin.ticket_mgmt_handler import admin_captcha_settings_view
 
-    dummy_user = 666777888
+    import time
+    dummy_user = 666000000 + int(time.time() * 1000 % 100000)
     await model_async.add_user(dummy_user)
 
     # Missing Bale ID -> should return False
@@ -421,21 +425,43 @@ async def test_prerequisites_and_turnstile():
     await model_async.set_s3_endpoint(dummy_user, "https://s3.ir-thr-at1.arvanstorage.ir")
     assert await check_user_prerequisites(msg, dummy_user) is True
 
-    # Cloudflare Turnstile Captcha Toggle
-    assert model_async.is_captcha_download_enabled() is False  # default disabled
-    await model_async.set_captcha_download_enabled(True)
-    assert model_async.is_captcha_download_enabled() is True
-    await model_async.set_captcha_download_enabled(False)
-    assert model_async.is_captcha_download_enabled() is False
+    # 5 Difficulty levels test
+    for diff in range(1, 6):
+        code, img = generate_captcha(difficulty=diff, length=5)
+        assert len(code) == 5
+        assert len(img) > 500
 
-    # Turnstile config test
-    import config
-    await config.update_turnstile_config(site_key="test_site", secret_key="test_secret", domain="https://captcha.domain.com")
-    assert config.CF_TURNSTILE_SITE_KEY == "test_site"
-    assert config.CF_TURNSTILE_SECRET_KEY == "test_secret"
-    assert config.CF_TURNSTILE_DOMAIN == "https://captcha.domain.com"
-    assert is_turnstile_configured() is True
-    assert "https://captcha.domain.com/turnstile" in build_turnstile_url(dummy_user, "token123")
+    # Length adjustment test (4 to 10)
+    for length in (4, 7, 10):
+        code, img = generate_captcha(difficulty=3, length=length)
+        assert len(code) == length
+
+    # 20-minute suspension test (5 failures)
+    test_user = 888999111
+    reset_captcha_failures(test_user)
+    assert check_user_captcha_lock(test_user)[0] is False
+
+    for _ in range(4):
+        fails, locked, secs = record_captcha_failure(test_user)
+        assert locked is False
+
+    # 5th failure must trigger lock
+    fails, locked, secs = record_captcha_failure(test_user)
+    assert locked is True
+    assert secs > 1000
+    is_locked, remaining = check_user_captcha_lock(test_user)
+    assert is_locked is True
+
+    # Reset lock
+    reset_captcha_failures(test_user)
+    assert check_user_captcha_lock(test_user)[0] is False
+
+    # Test admin_captcha_settings_view does not raise NameError
+    admin_uid = 999999999
+    admin_msg = DummyMessage("test")
+    await admin_captcha_settings_view(admin_msg, admin_uid)
+    assert len(admin_msg.replied) > 0
+
 
 
 
@@ -484,7 +510,7 @@ async def main():
     await test_security_guards()
     await test_downloader_and_cookies()
     await test_quota_updates()
-    await test_prerequisites_and_turnstile()
+    await test_prerequisites_and_captcha()
     print("ALL TESTS PASSED SUCCESSFULLY")
 
 

@@ -52,6 +52,8 @@ _CAPTCHA_TICKET_ENABLED: bool = True
 _CAPTCHA_POLL_ENABLED: bool = False
 _CAPTCHA_FILE_ENABLED: bool = False
 _CAPTCHA_DOWNLOAD_ENABLED: bool = False
+_CAPTCHA_DIFFICULTY: int = 3
+_CAPTCHA_LENGTH: int = 5
 
 # =========================
 # Tables & Settings
@@ -255,7 +257,7 @@ async def init_cache() -> None:
         for admin_id in admin_ids:
             _WHITELIST_USERS.add(admin_id)
 
-    global _CAPTCHA_TICKET_ENABLED, _CAPTCHA_POLL_ENABLED, _CAPTCHA_FILE_ENABLED, _CAPTCHA_DOWNLOAD_ENABLED
+    global _CAPTCHA_TICKET_ENABLED, _CAPTCHA_POLL_ENABLED, _CAPTCHA_FILE_ENABLED, _CAPTCHA_DOWNLOAD_ENABLED, _CAPTCHA_DIFFICULTY, _CAPTCHA_LENGTH
     saved_ct = await get_setting("captcha_ticket_enabled", "true")
     _CAPTCHA_TICKET_ENABLED = (saved_ct.lower() == "true")
     saved_cp = await get_setting("captcha_poll_enabled", "false")
@@ -264,6 +266,18 @@ async def init_cache() -> None:
     _CAPTCHA_FILE_ENABLED = (saved_cf.lower() == "true")
     saved_cd = await get_setting("captcha_download_enabled", "false")
     _CAPTCHA_DOWNLOAD_ENABLED = (saved_cd.lower() == "true")
+
+    saved_diff = await get_setting("captcha_difficulty", "3")
+    try:
+        _CAPTCHA_DIFFICULTY = max(1, min(5, int(saved_diff)))
+    except ValueError:
+        _CAPTCHA_DIFFICULTY = 3
+
+    saved_len = await get_setting("captcha_length", "5")
+    try:
+        _CAPTCHA_LENGTH = max(4, min(10, int(saved_len)))
+    except ValueError:
+        _CAPTCHA_LENGTH = 5
 
 
 async def get_setting(key: str, default: str = "") -> str:
@@ -1254,5 +1268,28 @@ async def set_captcha_download_enabled(enabled: bool) -> bool:
     _CAPTCHA_DOWNLOAD_ENABLED = enabled
     await set_setting("captcha_download_enabled", str(enabled).lower())
     return True
+
+
+def get_captcha_difficulty() -> int:
+    return _CAPTCHA_DIFFICULTY
+
+
+async def set_captcha_difficulty(difficulty: int) -> bool:
+    global _CAPTCHA_DIFFICULTY
+    _CAPTCHA_DIFFICULTY = max(1, min(5, int(difficulty)))
+    await set_setting("captcha_difficulty", str(_CAPTCHA_DIFFICULTY))
+    return True
+
+
+def get_captcha_length() -> int:
+    return _CAPTCHA_LENGTH
+
+
+async def set_captcha_length(length: int) -> bool:
+    global _CAPTCHA_LENGTH
+    _CAPTCHA_LENGTH = max(4, min(10, int(length)))
+    await set_setting("captcha_length", str(_CAPTCHA_LENGTH))
+    return True
+
 
 

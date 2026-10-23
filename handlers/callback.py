@@ -28,13 +28,13 @@ from handlers.handler_helpers.callback_helpers.user_handler import (
 from handlers.handler_helpers.callback_helpers.admin.ticket_mgmt_handler import (
     admin_captcha_settings_view,
     admin_category_detail_view,
+    admin_change_captcha_length,
     admin_delete_category_action,
     admin_delete_poll,
     admin_manage_categories,
     admin_poll_detail_view,
     admin_polls_management,
-    admin_set_turnstile_domain_prompt,
-    admin_set_turnstile_keys_prompt,
+    admin_set_captcha_difficulty,
     admin_start_add_category,
     admin_start_poll_creation,
     admin_tickets_menu,
@@ -152,8 +152,6 @@ CALLBACK_ROUTES = {
     "adm_toggle_captcha_poll": admin_toggle_captcha_poll,
     "adm_toggle_captcha_file": admin_toggle_captcha_file,
     "adm_toggle_captcha_download": admin_toggle_captcha_download,
-    "adm_set_turnstile_domain": admin_set_turnstile_domain_prompt,
-    "adm_set_turnstile_keys": admin_set_turnstile_keys_prompt,
     # media & cookies
     "user_download_media_prompt": user_download_media_prompt,
     "user_quota_info": user_quota_info_callback,
@@ -197,8 +195,6 @@ ADMIN_CALLBACK_NAMES = {
     "adm_toggle_captcha_poll",
     "adm_toggle_captcha_file",
     "adm_toggle_captcha_download",
-    "adm_set_turnstile_domain",
-    "adm_set_turnstile_keys",
     "adm_manage_cookies",
     "adm_upload_cookie",
     "adm_delete_cookie",
@@ -396,6 +392,36 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
         except Exception:
             pass
 
+    if callback.data.startswith("adm_set_diff:"):
+        try:
+            diff = int(callback.data.split(":")[1])
+            await admin_set_captcha_difficulty(callback.message, user_id, diff)
+            diff_names = {1: "خیلی آسان", 2: "آسان", 3: "متوسط", 4: "سخت", 5: "خیلی سخت"}
+            await callback.answer(f"سطح دشواری به {diff} ({diff_names.get(diff, '')}) تنظیم شد.")
+            return
+        except Exception:
+            pass
+
+    if callback.data == "adm_cap_len:inc":
+        try:
+            await admin_change_captcha_length(callback.message, user_id, +1)
+            await callback.answer()
+            return
+        except Exception:
+            pass
+
+    if callback.data == "adm_cap_len:dec":
+        try:
+            await admin_change_captcha_length(callback.message, user_id, -1)
+            await callback.answer()
+            return
+        except Exception:
+            pass
+
+    if callback.data == "noop":
+        await callback.answer()
+        return
+
     # Media Downloader Callbacks
     if callback.data.startswith("dl_q:"):
         try:
@@ -415,16 +441,6 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
             return
         except Exception:
             pass
-
-    if callback.data.startswith("cf_verified:"):
-        try:
-            _, token = callback.data.split(":", 1)
-            from handlers.handler_helpers.message_helpers.media_handler import handle_turnstile_verified
-            await handle_turnstile_verified(callback, user_id, token)
-            return
-        except Exception as e:
-            await callback.answer(f"خطا در تایید: {e}", show_alert=True)
-            return
 
     if callback.data.startswith("dl_cancel:"):
         try:

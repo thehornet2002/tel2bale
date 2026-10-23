@@ -1,6 +1,6 @@
 """
 Handlers for multimedia downloads (YouTube, Instagram, Spotify, etc.),
-Cloudflare Turnstile captcha challenges, global cookies, and quota tracking.
+internal image captcha challenges, global cookies, and quota tracking.
 """
 import os
 import time
@@ -8,9 +8,8 @@ import uuid
 from pyrogram.types import CallbackQuery, Message
 import config
 from db import model_async
-from services import downloader_service, s3_service, turnstile_service
+from services import downloader_service, s3_service
 from services.bale_service import bale_bot
-from services.captcha_service import generate_hard_captcha
 from services.cookie_service import (
     delete_cookie_file,
     get_cookie_status,
@@ -24,7 +23,6 @@ from utils.keyboards import (
     build_cancel_reply_keyboard,
     build_captcha_keyboard,
     build_media_quality_keyboard,
-    build_turnstile_verify_keyboard,
 )
 from utils.logger import get_logger
 
@@ -113,22 +111,9 @@ async def handle_media_link_request(message: Message, user_id: int, raw_url: str
             "created_at": time.time(),
             "captcha_passed": False,
         }
-
-        # Check if Cloudflare Turnstile domain is configured
-        if turnstile_service.is_turnstile_configured():
-            cf_url = turnstile_service.build_turnstile_url(user_id, token)
-            await message.reply_text(
-                "🛡 **تایید امنیتی Cloudflare Turnstile:**\n\n"
-                "جهت جلوگیری از فشار روی سرور و دانلود اسپم، لطفاً تست امنیتی کلودفلر را تکمیل فرمایید:\n"
-                "پس از تایید پازل در صفحه وب، دکمه «تایید و ادامه دانلود» را لمس کنید.",
-                reply_markup=build_turnstile_verify_keyboard(cf_url, token)
-            )
-            return True
-        else:
-            # Fallback to visual mathematical captcha image
-            from handlers.handler_helpers.message_helpers.captcha_handler import issue_captcha
-            await issue_captcha(message, user_id, f"dl_{token}")
-            return True
+        from handlers.handler_helpers.message_helpers.captcha_handler import issue_captcha
+        await issue_captcha(message, user_id, f"dl_{token}")
+        return True
 
     # 3. If captcha is disabled or passed, proceed to fetch formats
     return await prompt_media_quality_selection(message, user_id, url)
@@ -190,22 +175,6 @@ async def prompt_media_quality_selection(message: Message, user_id: int, url: st
 
     await message.reply_text(caption, reply_markup=kb)
     return True
-
-
-async def handle_turnstile_verified(callback: CallbackQuery, user_id: int, token: str) -> None:
-    """Callback when user clicks 'تایید و ادامه دانلود' after completing Turnstile."""
-    data = _PENDING_DOWNLOADS.get(token)
-    if not data or data["user_id"] != user_id:
-        await callback.answer("درخواست منقضی شده است. لطفاً مجدداً لینک را ارسال فرمایید.", show_alert=True)
-        return
-
-    await callback.answer("✅ تایید امنیتی با موفقیت انجام شد.")
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-
-    await prompt_media_quality_selection(callback.message, user_id, data["url"])
 
 
 async def execute_media_download(callback: CallbackQuery, user_id: int, token: str, quality: str) -> None:
