@@ -51,6 +51,7 @@ _WHITELIST_ENABLED: bool = False
 _CAPTCHA_TICKET_ENABLED: bool = True
 _CAPTCHA_POLL_ENABLED: bool = False
 _CAPTCHA_FILE_ENABLED: bool = False
+_CAPTCHA_DOWNLOAD_ENABLED: bool = False
 
 # =========================
 # Tables & Settings
@@ -254,13 +255,15 @@ async def init_cache() -> None:
         for admin_id in admin_ids:
             _WHITELIST_USERS.add(admin_id)
 
-    global _CAPTCHA_TICKET_ENABLED, _CAPTCHA_POLL_ENABLED, _CAPTCHA_FILE_ENABLED
+    global _CAPTCHA_TICKET_ENABLED, _CAPTCHA_POLL_ENABLED, _CAPTCHA_FILE_ENABLED, _CAPTCHA_DOWNLOAD_ENABLED
     saved_ct = await get_setting("captcha_ticket_enabled", "true")
     _CAPTCHA_TICKET_ENABLED = (saved_ct.lower() == "true")
     saved_cp = await get_setting("captcha_poll_enabled", "false")
     _CAPTCHA_POLL_ENABLED = (saved_cp.lower() == "true")
     saved_cf = await get_setting("captcha_file_enabled", "false")
     _CAPTCHA_FILE_ENABLED = (saved_cf.lower() == "true")
+    saved_cd = await get_setting("captcha_download_enabled", "false")
+    _CAPTCHA_DOWNLOAD_ENABLED = (saved_cd.lower() == "true")
 
 
 async def get_setting(key: str, default: str = "") -> str:
@@ -1240,4 +1243,16 @@ async def set_captcha_file_enabled(enabled: bool) -> bool:
     _CAPTCHA_FILE_ENABLED = enabled
     await set_setting("captcha_file_enabled", str(enabled).lower())
     return True
+
+
+def is_captcha_download_enabled() -> bool:
+    return _CAPTCHA_DOWNLOAD_ENABLED
+
+
+async def set_captcha_download_enabled(enabled: bool) -> bool:
+    global _CAPTCHA_DOWNLOAD_ENABLED
+    _CAPTCHA_DOWNLOAD_ENABLED = enabled
+    await set_setting("captcha_download_enabled", str(enabled).lower())
+    return True
+
 

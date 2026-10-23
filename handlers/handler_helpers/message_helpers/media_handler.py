@@ -1,6 +1,6 @@
 """
-Handlers for multimedia downloads (YouTube, Instagram, Spotify, etc.)
-and cookie / quota management.
+Handlers for multimedia downloads (YouTube, Instagram, Spotify, etc.),
+Cloudflare Turnstile captcha challenges, global cookies, and quota tracking.
 """
 import os
 import time
@@ -8,8 +8,9 @@ import uuid
 from pyrogram.types import CallbackQuery, Message
 import config
 from db import model_async
-from services import downloader_service, s3_service
+from services import downloader_service, s3_service, turnstile_service
 from services.bale_service import bale_bot
+from services.captcha_service import generate_hard_captcha
 from services.cookie_service import (
     delete_cookie_file,
     get_cookie_status,
@@ -21,8 +22,9 @@ from utils.keyboards import (
     build_back_keyboard,
     build_back_management_keyboard,
     build_cancel_reply_keyboard,
+    build_captcha_keyboard,
     build_media_quality_keyboard,
-    build_user_cookie_keyboard,
+    build_turnstile_verify_keyboard,
 )
 from utils.logger import get_logger
 
@@ -39,12 +41,101 @@ def _clean_expired_downloads() -> None:
         _PENDING_DOWNLOADS.pop(k, None)
 
 
+async def check_user_prerequisites(message: Message, user_id: int) -> bool:
+    """
+    Ensure the user has configured:
+    1. Bale numeric ID
+    2. Bale bot token
+    3. Arvan S3 credentials (access key, secret key, and endpoint)
+    before performing any download or media processing.
+    """
+    bale_id = await model_async.get_bale_id(user_id)
+    if not bale_id:
+        await model_async.set_state(user_id, "home")
+        await message.reply_text(
+            "⚠️ **پیش‌نیاز تکمیل نشده است:**\n"
+            "ابتدا باید **شناسه عددی بله** خود را در ربات تنظیم کنید.\n\n"
+            "از دکمه «تنظیم ID عددی بله» در منوی اصلی استفاده نمایید.",
+            reply_markup=build_back_keyboard()
+        )
+        return False
+
+    bot_token = await model_async.get_bale_token(user_id)
+    if not bot_token:
+        await model_async.set_state(user_id, "home")
+        await message.reply_text(
+            "⚠️ **پیش‌نیاز تکمیل نشده است:**\n"
+            "ابتدا باید **توکن ربات بله (Bot Token)** خود را در ربات تنظیم کنید.\n\n"
+            "از دکمه «تنظیم Bot Token بله» در منوی اصلی استفاده نمایید.",
+            reply_markup=build_back_keyboard()
+        )
+        return False
+
+    access_key = await model_async.get_access_key(user_id)
+    secret_key = await model_async.get_secret_key(user_id)
+    s3_endpoint = await model_async.get_s3_endpoint(user_id)
+
+    if not access_key or not secret_key or not s3_endpoint:
+        await model_async.set_state(user_id, "home")
+        await message.reply_text(
+            "⚠️ **پیش‌نیاز تکمیل نشده است (فضای ابری آروان):**\n"
+            "برای ذخیره‌سازی، دانلود و انتقال فایل‌ها باید اطلاعات **S3 آروان** (Access Key, Secret Key و Endpoint) خود را وارد کنید.\n\n"
+            "از دکمه «تنظیم Access Key و Secret Key برای S3» در منوی اصلی استفاده نمایید.",
+            reply_markup=build_back_keyboard()
+        )
+        return False
+
+    return True
+
+
 async def handle_media_link_request(message: Message, user_id: int, raw_url: str) -> bool:
     """
-    Process recognized media URL (YouTube, Instagram, Spotify, etc.),
-    fetch available formats, and present interactive quality selection keyboard.
+    Process recognized media URL (YouTube, Instagram, Spotify, etc.).
+    First checks prerequisites (Bale ID, Bale Token, and S3).
+    Then checks Captcha (Cloudflare Turnstile or fallback) if enabled.
+    Finally fetches media formats and presents interactive quality options.
     """
+    # 1. Check prerequisites first
+    has_prereqs = await check_user_prerequisites(message, user_id)
+    if not has_prereqs:
+        return True
+
     url = downloader_service.extract_media_url(raw_url) or raw_url.strip()
+
+    # 2. Check if Captcha is enabled for media downloads (and user is not an admin)
+    is_admin = await model_async.check_admin(user_id)
+    if not is_admin and model_async.is_captcha_download_enabled():
+        _clean_expired_downloads()
+        token = uuid.uuid4().hex[:10]
+        _PENDING_DOWNLOADS[token] = {
+            "user_id": user_id,
+            "url": url,
+            "created_at": time.time(),
+            "captcha_passed": False,
+        }
+
+        # Check if Cloudflare Turnstile domain is configured
+        if turnstile_service.is_turnstile_configured():
+            cf_url = turnstile_service.build_turnstile_url(user_id, token)
+            await message.reply_text(
+                "🛡 **تایید امنیتی Cloudflare Turnstile:**\n\n"
+                "جهت جلوگیری از فشار روی سرور و دانلود اسپم، لطفاً تست امنیتی کلودفلر را تکمیل فرمایید:\n"
+                "پس از تایید پازل در صفحه وب، دکمه «تایید و ادامه دانلود» را لمس کنید.",
+                reply_markup=build_turnstile_verify_keyboard(cf_url, token)
+            )
+            return True
+        else:
+            # Fallback to visual mathematical captcha image
+            from handlers.handler_helpers.message_helpers.captcha_handler import issue_captcha
+            await issue_captcha(message, user_id, f"dl_{token}")
+            return True
+
+    # 3. If captcha is disabled or passed, proceed to fetch formats
+    return await prompt_media_quality_selection(message, user_id, url)
+
+
+async def prompt_media_quality_selection(message: Message, user_id: int, url: str) -> bool:
+    """Extract formats and show quality selection keyboard."""
     status_msg = await message.reply_text("🔍 در حال بررسی لینک و دریافت اطلاعات رسانه...")
 
     try:
@@ -67,6 +158,7 @@ async def handle_media_link_request(message: Message, user_id: int, raw_url: str
         "thumbnail": info["thumbnail"],
         "spotify_query": info.get("spotify_query"),
         "created_at": time.time(),
+        "captcha_passed": True,
     }
 
     platform_names = {
@@ -100,6 +192,22 @@ async def handle_media_link_request(message: Message, user_id: int, raw_url: str
     return True
 
 
+async def handle_turnstile_verified(callback: CallbackQuery, user_id: int, token: str) -> None:
+    """Callback when user clicks 'تایید و ادامه دانلود' after completing Turnstile."""
+    data = _PENDING_DOWNLOADS.get(token)
+    if not data or data["user_id"] != user_id:
+        await callback.answer("درخواست منقضی شده است. لطفاً مجدداً لینک را ارسال فرمایید.", show_alert=True)
+        return
+
+    await callback.answer("✅ تایید امنیتی با موفقیت انجام شد.")
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    await prompt_media_quality_selection(callback.message, user_id, data["url"])
+
+
 async def execute_media_download(callback: CallbackQuery, user_id: int, token: str, quality: str) -> None:
     """Download selected format, check quota, and forward media to Bale."""
     data = _PENDING_DOWNLOADS.get(token)
@@ -111,11 +219,13 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
         await callback.answer("این درخواست متعلق به حساب شما نیست.", show_alert=True)
         return
 
+    # Double check prerequisites
+    has_prereqs = await check_user_prerequisites(callback.message, user_id)
+    if not has_prereqs:
+        return
+
     bale_id = await model_async.get_bale_id(user_id)
     bot_token = await model_async.get_bale_token(user_id)
-    if not bale_id or not bot_token:
-        await callback.answer("ابتدا باید شناسه بله و توکن ربات بله خود را تنظیم کنید.", show_alert=True)
-        return
 
     # Check remaining quota before downloading
     quota_info = await get_quota_details(user_id)
@@ -150,7 +260,6 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
         return
 
     file_size_mb = file_size / (1024 * 1024)
-    file_size_gb = file_size / (1024 ** 3)
 
     # Atomic quota reservation
     has_quota = await reserve_download_quota(user_id, file_size)
@@ -176,7 +285,7 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
     except Exception:
         pass
 
-    # Send to Bale
+    # Send to Bale or S3
     try:
         if file_size <= config.MAX_FILE_SIZE:
             ext = os.path.splitext(file_path)[1].lower()
@@ -193,7 +302,7 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
                     caption=title[:255]
                 )
         else:
-            # Upload to S3 if larger than MAX_FILE_SIZE
+            # S3 Upload
             access_key = await model_async.get_access_key(user_id)
             secret_key = await model_async.get_secret_key(user_id)
             endpoint = await model_async.get_s3_endpoint(user_id)
@@ -286,7 +395,7 @@ async def execute_cancel_download(callback: CallbackQuery, token: str) -> None:
 
 
 # ==========================================
-# Cookie Handlers (Admin & User)
+# Global Cookie Handlers (Admin Only)
 # ==========================================
 
 async def admin_manage_cookies(message: Message, user_id: int) -> None:
@@ -299,13 +408,13 @@ async def admin_manage_cookies(message: Message, user_id: int) -> None:
             f"وضعیت: 🟢 **فعال**\n"
             f"حجم فایل: **{size_kb:.2f} کیلوبایت**\n"
             f"مسیر ذخیره: `{status['path']}`\n\n"
-            "این کوکی‌ها برای کلیه دانلودهای یوتیوب و اینستاگرام اعمال می‌شوند."
+            "این کوکی‌ها توسط مدیر برای کلیه دانلودهای یوتیوب و اینستاگرام اعمال می‌شوند."
         )
     else:
         text = (
             "🍪 **مدیریت کوکی‌های عمومی (Global Cookies)**\n\n"
             "وضعیت: ⚪️ **تنظیم نشده**\n\n"
-            "با تنظیم کوکی عمومی، یوتیوب و اینستاگرام محدودیت‌های سنی و خطاهای احراز هویت را رفع می‌کنند."
+            "با تنظیم کوکی عمومی، یوتیوب و اینستاگرام محدودیت‌های سنی و خطاهای ربات را رد می‌کنند."
         )
 
     kb = build_admin_cookie_keyboard(status["has_cookie"])
@@ -344,75 +453,6 @@ async def admin_save_cookies_message(message: Message, user_id: int) -> None:
         await message.reply_text(
             "❌ خطا در ذخیره‌سازی فایل کوکی.",
             reply_markup=build_back_management_keyboard()
-        )
-
-
-async def user_cookie_menu(message: Message, user_id: int) -> None:
-    """Display user custom cookie panel."""
-    status = get_cookie_status(user_id)
-    if status["is_user_specific"] and status["has_cookie"]:
-        size_kb = status["size_bytes"] / 1024
-        text = (
-            "🍪 **تنظیمات کوکی اختصاصی شما**\n\n"
-            f"وضعیت: 🟢 **فعال (کوکی اختصاصی شما)**\n"
-            f"حجم فایل: **{size_kb:.2f} KB**\n\n"
-            "در صورت دانلود، ابتدا کوکی اختصاصی شما اولویت خواهد داشت."
-        )
-    elif status["has_cookie"]:
-        text = (
-            "🍪 **تنظیمات کوکی**\n\n"
-            "وضعیت: 🟢 **کوکی عمومی سرور فعال است**\n"
-            "(می‌توانید در صورت تمایل کوکی اختصاصی خود را نیز اضافه فرمایید)."
-        )
-    else:
-        text = (
-            "🍪 **تنظیمات کوکی اختصاصی**\n\n"
-            "وضعیت: ⚪️ **کوکی تنظیم نشده است**\n"
-            "افزودن کوکی برای رفع محدودیت‌ها یا دانلود از اکانت شخصی اختیاری است."
-        )
-
-    kb = build_user_cookie_keyboard(status["is_user_specific"] and status["has_cookie"])
-    if getattr(message, "outgoing", False) or getattr(getattr(message, "from_user", None), "is_self", False):
-        try:
-            await message.edit_text(text, reply_markup=kb)
-            return
-        except Exception:
-            pass
-    await message.reply_text(text, reply_markup=kb)
-
-
-async def user_save_cookies_message(message: Message, user_id: int) -> None:
-    """Save user uploaded cookies.txt."""
-    content = ""
-    if message.document:
-        dl_path = await message.download(in_memory=False)
-        try:
-            with open(dl_path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
-        finally:
-            if os.path.exists(dl_path):
-                os.remove(dl_path)
-    elif message.text:
-        content = message.text
-
-    if not content or len(content.strip()) < 10:
-        await message.reply_text(
-            "❌ محتوای کوکی نامعتبر است. لطفاً فایل معتبر cookies.txt ارسال کنید.",
-            reply_markup=build_back_keyboard()
-        )
-        return
-
-    success = save_cookie_file(content, user_id=user_id)
-    await model_async.set_state(user_id, "home")
-    if success:
-        await message.reply_text(
-            "✅ کوکی اختصاصی شما با موفقیت ذخیره شد.",
-            reply_markup=build_back_keyboard()
-        )
-    else:
-        await message.reply_text(
-            "❌ خطا در ذخیره کوکی اختصاصی.",
-            reply_markup=build_back_keyboard()
         )
 
 

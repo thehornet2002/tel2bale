@@ -128,6 +128,29 @@ async def handle_media_link_input(message: Message, user_id: int):
         await forward(message, user_id)
 
 
+async def handle_turnstile_domain_input(message: Message, user_id: int):
+    domain = (message.text or "").strip()
+    await set_state(user_id, "management")
+    if not domain:
+        await message.reply_text("دامنه نامعتبر است.", reply_markup=build_management_keyboard())
+        return
+    await config.update_turnstile_config(domain=domain)
+    await message.reply_text(f"✅ دامنه کلودفلر با موفقیت روی `{domain}` تنظیم شد.", reply_markup=build_management_keyboard())
+
+
+async def handle_turnstile_keys_input(message: Message, user_id: int):
+    raw = (message.text or "").strip()
+    await set_state(user_id, "management")
+    parts = raw.split()
+    if len(parts) < 2:
+        await message.reply_text("❌ فرمت نامعتبر است. لطفاً هر دو کلید Site Key و Secret Key را با فاصله ارسال نمایید.", reply_markup=build_management_keyboard())
+        return
+    site_key = parts[0].strip()
+    secret_key = parts[1].strip()
+    await config.update_turnstile_config(site_key=site_key, secret_key=secret_key)
+    await message.reply_text("✅ کلیدهای Cloudflare Turnstile با موفقیت در .env ذخیره شدند.", reply_markup=build_management_keyboard())
+
+
 STATE_HANDLERS = {
     "home": forward,
     "enter_bale_id": enter_bale_id,
@@ -158,8 +181,10 @@ STATE_HANDLERS = {
     "set_s3_endpoint": set_s3_endpoint,
     # cookies & media
     "waiting_admin_cookies": admin_save_cookies_message,
-    "waiting_user_cookies": user_save_cookies_message,
     "waiting_media_link": handle_media_link_input,
+    # turnstile
+    "waiting_turnstile_domain": handle_turnstile_domain_input,
+    "waiting_turnstile_keys": handle_turnstile_keys_input,
 }
 
 CANCEL_WORDS = {
@@ -300,6 +325,16 @@ async def handle_input(client: Client, message: Message) -> None:
                     await message.reply_text("✅ کد امنیتی تایید شد و رأی شما با موفقیت ثبت گردید.")
                 except Exception:
                     await set_state(user_id, "home")
+            elif tag.startswith("dl_"):
+                token = tag.replace("dl_", "")
+                await set_state(user_id, "home")
+                from handlers.handler_helpers.message_helpers.media_handler import _PENDING_DOWNLOADS, prompt_media_quality_selection
+                data = _PENDING_DOWNLOADS.get(token)
+                if data:
+                    data["captcha_passed"] = True
+                    await prompt_media_quality_selection(message, user_id, data["url"])
+                else:
+                    await message.reply_text("✅ کد امنیتی تایید شد. لطفاً مجدداً لینک مورد نظر را ارسال فرمایید.")
             elif tag == "file_forward":
                 pending_file = get_pending_file_message(user_id)
                 clear_pending_file_message(user_id)

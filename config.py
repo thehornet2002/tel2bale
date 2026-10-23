@@ -52,9 +52,6 @@ ADS_CHANNELS = _parse_list(os.getenv("TEL_ADS_CHANNELS", ""))
 WHITELIST_USERS = _parse_list(os.getenv("TEL_WHITELIST_USERS", ""), int)
 WHITELIST_ENABLED = os.getenv("TEL_WHITELIST_ENABLED", "False").strip().lower() == "true"
 
-# Redis Configuration
-REDIS_URL = os.getenv("REDIS_URL", "").strip().strip('\'"') or None
-
 # Proxy Helpers
 def _clean_env(value: str | None) -> str:
     """Strip whitespace and quotation marks from environment values."""
@@ -71,6 +68,15 @@ def _normalize_proxy_url(value: str | None, default_scheme: str = "http") -> str
     if "://" not in value:
         value = f"{default_scheme}://{value}"
     return value
+
+
+# Cloudflare Turnstile Captcha Config
+CF_TURNSTILE_SITE_KEY = _clean_env(os.getenv("CF_TURNSTILE_SITE_KEY"))
+CF_TURNSTILE_SECRET_KEY = _clean_env(os.getenv("CF_TURNSTILE_SECRET_KEY"))
+CF_TURNSTILE_DOMAIN = _clean_env(os.getenv("CF_TURNSTILE_DOMAIN"))
+
+# Redis Configuration
+REDIS_URL = os.getenv("REDIS_URL", "").strip().strip('\'"') or None
 
 
 # Telegram Proxy Configuration
@@ -253,3 +259,33 @@ async def remove_admin(admin_id: int):
             ADMIN_IDS.append(admin_id)
             logger.error(f"[CONFIG] Error removing admin: {e}")
             return False
+
+
+async def update_turnstile_config(site_key: str | None = None, secret_key: str | None = None, domain: str | None = None):
+    """Update Cloudflare Turnstile credentials in memory and .env."""
+    global CF_TURNSTILE_SITE_KEY, CF_TURNSTILE_SECRET_KEY, CF_TURNSTILE_DOMAIN
+    async with _env_lock:
+        updates = {}
+        if site_key is not None:
+            CF_TURNSTILE_SITE_KEY = site_key.strip()
+            updates["CF_TURNSTILE_SITE_KEY"] = CF_TURNSTILE_SITE_KEY
+        if secret_key is not None:
+            CF_TURNSTILE_SECRET_KEY = secret_key.strip()
+            updates["CF_TURNSTILE_SECRET_KEY"] = CF_TURNSTILE_SECRET_KEY
+        if domain is not None:
+            dom = domain.strip().rstrip("/")
+            if dom and not dom.startswith(("http://", "https://")):
+                dom = f"https://{dom}"
+            CF_TURNSTILE_DOMAIN = dom
+            updates["CF_TURNSTILE_DOMAIN"] = CF_TURNSTILE_DOMAIN
+
+        if updates:
+            try:
+                _update_env_keys(updates)
+                logger.info(f"[CONFIG] Updated Cloudflare Turnstile keys: {list(updates.keys())}")
+                return True
+            except Exception as e:
+                logger.error(f"[CONFIG] Error saving turnstile keys: {e}")
+                return False
+        return True
+

@@ -378,39 +378,76 @@ async def test_downloader_and_cookies():
 
     assert extract_media_url(f"Check this: {yt_url} cool!") == yt_url
 
-    # Cookie service tests
-    test_user_id = 12345999
+    # Cookie service tests (Admin-only global cookies)
     cookie_sample = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsample_value\n"
 
-    # Save user cookie
-    assert save_cookie_file(cookie_sample, user_id=test_user_id) is True
-    status = get_cookie_status(test_user_id)
-    assert status["has_cookie"] is True
-    assert status["is_user_specific"] is True
-    assert get_effective_cookie_file(test_user_id) is not None
-
-    # Delete user cookie
-    assert delete_cookie_file(test_user_id) is True
-    status_after = get_cookie_status(test_user_id)
-    assert status_after["is_user_specific"] is False
-
     # Save global cookie
-    assert save_cookie_file(cookie_sample, user_id=None) is True
+    assert save_cookie_file(cookie_sample) is True
     global_status = get_cookie_status()
     assert global_status["has_cookie"] is True
     assert get_effective_cookie_file() is not None
 
     # Clean up global cookie
-    delete_cookie_file(None)
+    delete_cookie_file()
+    status_after = get_cookie_status()
+    assert status_after["has_cookie"] is False
+
+
+async def test_prerequisites_and_turnstile():
+    from handlers.handler_helpers.message_helpers.media_handler import check_user_prerequisites
+    from services.turnstile_service import (
+        is_turnstile_configured,
+        build_turnstile_url,
+    )
+
+    dummy_user = 666777888
+    await model_async.add_user(dummy_user)
+
+    # Missing Bale ID -> should return False
+    msg = DummyMessage("test")
+    assert await check_user_prerequisites(msg, dummy_user) is False
+
+    # Set Bale ID only -> still False (missing token)
+    await model_async.set_bale_id(dummy_user, 123456)
+    assert await check_user_prerequisites(msg, dummy_user) is False
+
+    # Set Bale Token only -> still False (missing S3)
+    await model_async.set_bale_token(dummy_user, "123456:abcdef")
+    assert await check_user_prerequisites(msg, dummy_user) is False
+
+    # Set S3 Access Key & Secret Key & Endpoint -> should return True
+    await model_async.set_access_key(dummy_user, "access123")
+    await model_async.set_secret_key(dummy_user, "secret123")
+    await model_async.set_s3_endpoint(dummy_user, "https://s3.ir-thr-at1.arvanstorage.ir")
+    assert await check_user_prerequisites(msg, dummy_user) is True
+
+    # Cloudflare Turnstile Captcha Toggle
+    assert model_async.is_captcha_download_enabled() is False  # default disabled
+    await model_async.set_captcha_download_enabled(True)
+    assert model_async.is_captcha_download_enabled() is True
+    await model_async.set_captcha_download_enabled(False)
+    assert model_async.is_captcha_download_enabled() is False
+
+    # Turnstile config test
+    import config
+    await config.update_turnstile_config(site_key="test_site", secret_key="test_secret", domain="https://captcha.domain.com")
+    assert config.CF_TURNSTILE_SITE_KEY == "test_site"
+    assert config.CF_TURNSTILE_SECRET_KEY == "test_secret"
+    assert config.CF_TURNSTILE_DOMAIN == "https://captcha.domain.com"
+    assert is_turnstile_configured() is True
+    assert "https://captcha.domain.com/turnstile" in build_turnstile_url(dummy_user, "token123")
+
 
 
 async def test_quota_updates():
+    import time
     from services.quota_service import get_quota_details
 
-    uid = 444333222
+    uid = 444333222 + int(time.time() % 100000)
     await model_async.add_user(uid)
 
-    # Unlimited by default
+    # Set 0 limit (unlimited)
+    await model_async.set_limit_download(uid, 0.0)
     details = await get_quota_details(uid)
     assert details["is_unlimited"] is True
 
@@ -447,6 +484,7 @@ async def main():
     await test_security_guards()
     await test_downloader_and_cookies()
     await test_quota_updates()
+    await test_prerequisites_and_turnstile()
     print("ALL TESTS PASSED SUCCESSFULLY")
 
 

@@ -16,13 +16,10 @@ from handlers.handler_helpers.callback_helpers.user_handler import (
     set_bale_id,
     set_bale_bot_token,
     set_s3,
-    user_cookie_menu_callback,
-    user_delete_cookie_callback,
     user_download_media_prompt,
     user_my_tickets,
     user_polls_list,
     user_quota_info_callback,
-    user_upload_cookie_callback,
     user_view_poll,
     user_view_poll_results,
     user_vote_poll_action,
@@ -36,9 +33,12 @@ from handlers.handler_helpers.callback_helpers.admin.ticket_mgmt_handler import 
     admin_manage_categories,
     admin_poll_detail_view,
     admin_polls_management,
+    admin_set_turnstile_domain_prompt,
+    admin_set_turnstile_keys_prompt,
     admin_start_add_category,
     admin_start_poll_creation,
     admin_tickets_menu,
+    admin_toggle_captcha_download,
     admin_toggle_captcha_file,
     admin_toggle_captcha_poll,
     admin_toggle_captcha_ticket,
@@ -151,12 +151,12 @@ CALLBACK_ROUTES = {
     "adm_toggle_captcha_ticket": admin_toggle_captcha_ticket,
     "adm_toggle_captcha_poll": admin_toggle_captcha_poll,
     "adm_toggle_captcha_file": admin_toggle_captcha_file,
+    "adm_toggle_captcha_download": admin_toggle_captcha_download,
+    "adm_set_turnstile_domain": admin_set_turnstile_domain_prompt,
+    "adm_set_turnstile_keys": admin_set_turnstile_keys_prompt,
     # media & cookies
     "user_download_media_prompt": user_download_media_prompt,
     "user_quota_info": user_quota_info_callback,
-    "user_cookie_menu": user_cookie_menu_callback,
-    "user_upload_cookie": user_upload_cookie_callback,
-    "user_delete_cookie": user_delete_cookie_callback,
     "adm_manage_cookies": admin_manage_cookies_cb,
     "adm_upload_cookie": admin_upload_cookie_cb,
     "adm_delete_cookie": admin_delete_cookie_cb,
@@ -196,6 +196,9 @@ ADMIN_CALLBACK_NAMES = {
     "adm_toggle_captcha_ticket",
     "adm_toggle_captcha_poll",
     "adm_toggle_captcha_file",
+    "adm_toggle_captcha_download",
+    "adm_set_turnstile_domain",
+    "adm_set_turnstile_keys",
     "adm_manage_cookies",
     "adm_upload_cookie",
     "adm_delete_cookie",
@@ -412,6 +415,16 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
             return
         except Exception:
             pass
+
+    if callback.data.startswith("cf_verified:"):
+        try:
+            _, token = callback.data.split(":", 1)
+            from handlers.handler_helpers.message_helpers.media_handler import handle_turnstile_verified
+            await handle_turnstile_verified(callback, user_id, token)
+            return
+        except Exception as e:
+            await callback.answer(f"خطا در تایید: {e}", show_alert=True)
+            return
 
     if callback.data.startswith("dl_cancel:"):
         try:
