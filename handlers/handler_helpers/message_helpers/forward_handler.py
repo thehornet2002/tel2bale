@@ -27,7 +27,8 @@ def format_bale_error(error: Exception) -> str:
     if "connection" in text:
         return "❌ ارتباط با سرورهای بله برقرار نشد.\nلطفاً کمی بعد دوباره تلاش کنید."
 
-    return f"❌ خطا در ارسال:\n{str(error)}"
+    logger.error(f"[BALE] Unhandled Bale forwarding error: {error}")
+    return "❌ خطا در ارسال پیام به پیام‌رسان بله. لطفاً تنظیمات شناسه و توکن بله خود را بررسی نمایید."
 
 
 async def forward(message: Message, user_id: int, bypass_captcha: bool = False):

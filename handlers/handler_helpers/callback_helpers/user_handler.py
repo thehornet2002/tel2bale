@@ -52,7 +52,8 @@ async def set_bale_id(message: Message, user_id: int) -> None:
                 reply_markup=build_back_keyboard()
             )
     except Exception as e:
-        await message.reply_text(text='مشکل در ارسال:' + str(e))
+        logger.error(f"[USER] Error in set_bale_id: {e}")
+        await message.reply_text(text='خطا در پردازش درخواست. لطفاً دوباره تلاش فرمایید.')
 
 
 async def reset_bale_id(message: Message, user_id: int) -> None:

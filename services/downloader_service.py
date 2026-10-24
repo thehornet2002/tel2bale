@@ -152,6 +152,11 @@ async def fetch_spotify_metadata(url: str) -> dict | None:
     return None
 
 
+# Hard resource ceilings for media downloading
+MAX_MEDIA_FILESIZE_BYTES = 500 * 1024 * 1024  # 500 MB hard ceiling
+MAX_MEDIA_DURATION_SECONDS = 3600  # 1 hour max duration
+
+
 def _get_base_ydl_opts(user_id: int | None = None) -> dict:
     ensure_downloads_dir()
     opts = {
@@ -164,6 +169,7 @@ def _get_base_ydl_opts(user_id: int | None = None) -> dict:
         "socket_timeout": 30,
         "noplaylist": True,
         "extract_flat": False,
+        "max_filesize": MAX_MEDIA_FILESIZE_BYTES,
     }
     cookie_file = get_effective_cookie_file(user_id)
     if cookie_file:
@@ -209,6 +215,13 @@ async def get_media_info(url: str, user_id: int | None = None) -> dict:
     raw_title = info.get("title") or "Media Download"
     title = re.sub(r"[^\w\s\-.,()]", "", raw_title)[:120]
     duration = info.get("duration")
+
+    # Hard ceiling on duration (1 hour)
+    if duration and duration > MAX_MEDIA_DURATION_SECONDS:
+        raise ValueError(
+            f"مدت زمان ویدیو ({duration // 60} دقیقه) از حداکثر سقف مجاز سرور ({MAX_MEDIA_DURATION_SECONDS // 60} دقیقه) بیشتر است."
+        )
+
     thumbnail = info.get("thumbnail")
 
     formats = info.get("formats", [])

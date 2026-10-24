@@ -41,18 +41,18 @@ async def set_bale_token_bot(message: Message, user_id: int):
 
 async def send_support_message(message: Message, user_id: int):
     import config
-    from db.redis_client import redis_get_state
 
     limit = config.SUPPORT_MESSAGE_LIMIT
-    count = await model_async.get_support_message_count(user_id)
-
-    if limit and count >= limit:
-        await model_async.set_state(user_id, 'home')
-        await message.reply_text(
-            '⚠️ شما به سقف مجاز ارسال پیام/تیکت در انتظار پاسخ رسیده‌اید. لطفاً منتظر پاسخ ادمین بمانید.',
-            reply_markup=build_back_keyboard()
-        )
-        return
+    # Atomic reservation check to prevent race conditions
+    if limit:
+        can_proceed = await model_async.increment_support_message_count_atomic(user_id, limit)
+        if not can_proceed:
+            await model_async.set_state(user_id, 'home')
+            await message.reply_text(
+                '⚠️ شما به سقف مجاز ارسال پیام/تیکت در انتظار پاسخ رسیده‌اید. لطفاً منتظر پاسخ ادمین بمانید.',
+                reply_markup=build_back_keyboard()
+            )
+            return
 
     # Extract selected ticket category ID from state
     cat_id = 1
@@ -81,7 +81,6 @@ async def send_support_message(message: Message, user_id: int):
         is_anonymous=is_anon
     )
 
-    await model_async.increment_support_message_count(user_id)
     await model_async.set_state(user_id, 'home')
     await message.reply_text(
         f"✅ تیکت شما با شناسه **#{ticket_id}** در بخش **{cat_title}** با موفقیت ثبت شد.\n"

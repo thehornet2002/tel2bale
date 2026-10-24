@@ -47,7 +47,7 @@ if [ -f "main.py" ] && [ -f "requirements.txt" ]; then
         git pull origin main 2>/dev/null || true
     fi
 else
-    APP_DIR="/root/tel2bale"
+    APP_DIR="/opt/tel2bale"
     mkdir -p "$APP_DIR"
     cd "$APP_DIR"
     if [ -d ".git" ]; then
@@ -58,8 +58,8 @@ else
         apt-get update -qq 2>/dev/null || true
         apt-get install -y -qq git curl jq 2>/dev/null || apt-get install -y git curl jq
         if ! git clone "https://github.com/$GITHUB_REPO.git" "$APP_DIR" 2>/dev/null; then
-            echo -e "${YELLOW}Git clone failed, downloading tarball release...${NC}"
-            curl -sSL "https://github.com/$GITHUB_REPO/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$APP_DIR"
+            echo -e "${YELLOW}Git clone failed, downloading release archive...${NC}"
+            curl --fail --show-error --location "https://github.com/$GITHUB_REPO/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$APP_DIR"
         fi
     fi
 fi
@@ -296,6 +296,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
+ReadWritePaths=$APP_DIR
 StandardOutput=journal
 StandardError=journal
 

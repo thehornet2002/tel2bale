@@ -3,8 +3,8 @@ Handlers for multimedia downloads (YouTube, Instagram, Spotify, etc.),
 internal image captcha challenges, global cookies, and quota tracking.
 """
 import os
+import secrets
 import time
-import uuid
 from pyrogram.types import CallbackQuery, Message
 import config
 from db import model_async
@@ -104,7 +104,7 @@ async def handle_media_link_request(message: Message, user_id: int, raw_url: str
     is_admin = await model_async.check_admin(user_id)
     if not is_admin and model_async.is_captcha_download_enabled():
         _clean_expired_downloads()
-        token = uuid.uuid4().hex[:10]
+        token = secrets.token_urlsafe(24)
         _PENDING_DOWNLOADS[token] = {
             "user_id": user_id,
             "url": url,
@@ -133,7 +133,7 @@ async def prompt_media_quality_selection(message: Message, user_id: int, url: st
         return False
 
     _clean_expired_downloads()
-    token = uuid.uuid4().hex[:10]
+    token = secrets.token_urlsafe(24)
     _PENDING_DOWNLOADS[token] = {
         "user_id": user_id,
         "url": url,
@@ -141,6 +141,7 @@ async def prompt_media_quality_selection(message: Message, user_id: int, url: st
         "title": info["title"],
         "duration": info["duration"],
         "thumbnail": info["thumbnail"],
+        "qualities": info.get("qualities", []),
         "spotify_query": info.get("spotify_query"),
         "created_at": time.time(),
         "captcha_passed": True,
@@ -186,6 +187,14 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
 
     if data["user_id"] != user_id:
         await callback.answer("این درخواست متعلق به حساب شما نیست.", show_alert=True)
+        return
+
+    # Server-side quality parameter validation against allowed values
+    valid_qualities = set(str(q) for q in data.get("qualities", []))
+    valid_qualities.update({"audio", "128k", "192k", "320k", "best"})
+    if quality not in valid_qualities:
+        logger.warning(f"[MEDIA] Rejected invalid quality parameter: {quality}")
+        await callback.answer("کیفیت درخواستی نامعتبر است.", show_alert=True)
         return
 
     # Double check prerequisites

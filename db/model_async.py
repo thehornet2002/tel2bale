@@ -850,11 +850,16 @@ async def create_user_ticket(
     is_anonymous: int = 0,
     group_message_id: int | None = None,
 ) -> int:
+    # Strict length sanitization on ticket inputs
+    safe_subject = (subject or "پشتیبانی").strip()[:80]
+    safe_message = (message or "").strip()[:4000]
+    safe_user_name = (user_name or "کاربر").strip()[:60]
+
     async with get_async_db() as db:
         cursor = await db.execute("""
             INSERT INTO tickets (telegram_id, user_name, category_id, subject, message, status, is_anonymous, group_message_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (telegram_id, user_name, category_id, subject, message.strip(), STATUS_UNREAD, is_anonymous, group_message_id))
+        """, (telegram_id, safe_user_name, category_id, safe_subject, safe_message, STATUS_UNREAD, is_anonymous, group_message_id))
         return cursor.lastrowid or 0
 
 
@@ -905,6 +910,24 @@ async def get_ticket_by_group_message_id(group_message_id: int) -> dict | None:
 
 async def get_support_message_count(tg_id: int) -> int:
     return int(await _get_user_field(tg_id, "support_message_count", 0) or 0)
+
+
+async def increment_support_message_count_atomic(tg_id: int, limit: int) -> bool:
+    """
+    Atomically increment support message count only if strictly below limit.
+    Prevents race condition where concurrent messages bypass pending ticket limits.
+    """
+    if limit <= 0:
+        return True
+
+    async with get_async_db() as db:
+        cursor = await db.execute("""
+            UPDATE users
+            SET support_message_count = support_message_count + 1,
+                updated_at = datetime('now','localtime')
+            WHERE telegram_id = ? AND support_message_count < ?
+        """, (tg_id, limit))
+        return cursor.rowcount > 0
 
 
 async def increment_support_message_count(tg_id: int) -> bool:
