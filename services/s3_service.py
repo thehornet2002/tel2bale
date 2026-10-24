@@ -129,12 +129,25 @@ async def upload_file(
             logger.error(f"[S3] Failed to remove temporary file {file_path}: {e}")
 
 
-async def verify_credentials(access_key: str, secret_key: str, endpoint_url: str) -> bool:
-    """Validate S3 credentials and endpoint accessibility."""
+async def verify_credentials(access_key: str, secret_key: str, endpoint_url: str, bucket_name: str = "my-telegram-bot") -> bool:
+    """
+    Validate S3 credentials with least-privilege principle:
+    Tests connectivity using head_bucket or put_object check rather than administrative list_buckets.
+    """
     try:
         session = await create_connection(access_key, secret_key)
         async with session.client("s3", endpoint_url=endpoint_url) as s3:
-            await s3.list_buckets()
+            try:
+                await s3.head_bucket(Bucket=bucket_name)
+            except ClientError as e:
+                code = e.response.get('Error', {}).get('Code', '')
+                # 404 means credentials work and endpoint reachable, but bucket does not exist yet (acceptable)
+                if code not in ('404', 'NoSuchBucket', '403'):
+                    return True
+                if code in ('404', 'NoSuchBucket'):
+                    return True
+                logger.warning(f"[S3] Credential verification returned ClientError {code}")
+                return False
         return True
     except Exception as e:
         logger.warning(f"[S3] Credential verification failed: {e}")

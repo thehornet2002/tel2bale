@@ -294,9 +294,9 @@ RestartSec=5
 StartLimitIntervalSec=0
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
+ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=$APP_DIR
+ReadWritePaths=$APP_DIR/bot.db $APP_DIR/downloads $APP_DIR/backups $APP_DIR/cookies $APP_DIR/logs $APP_DIR/.env
 StandardOutput=journal
 StandardError=journal
 

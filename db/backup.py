@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import os
 import sqlite3
+import stat
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -19,17 +21,30 @@ def create_sanitized_database_backup(
 ) -> str:
     """
     Create a clean, sanitized database backup for export:
-    1. Perform consistent snapshot using sqlite3 backup API.
-    2. Redact sensitive user credentials (bale_token, access_key, secret_key).
-    3. VACUUM sanitized backup to ensure zero remnant plaintext credentials.
+    1. Create file with explicit 0600 restrictive permissions and high-entropy unique name.
+    2. Perform consistent snapshot using sqlite3 backup API.
+    3. Strictly redact sensitive user credentials (bale_token, access_key, secret_key).
+    4. Raise RuntimeError and delete backup if redaction fails to prevent data leakage.
+    5. VACUUM sanitized backup to ensure zero remnant plaintext credentials.
     """
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database file not found: {db_path}")
 
     Path(backup_dir).mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(backup_dir, stat.S_IRWXU)  # 0700
+    except Exception:
+        pass
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = os.path.join(backup_dir, f"{prefix}_{timestamp}.db")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    unique_id = uuid.uuid4().hex[:8]
+    backup_path = os.path.join(backup_dir, f"{prefix}_{timestamp}_{unique_id}.db")
+
+    # Create destination file with 0600 permissions
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    mode = stat.S_IRUSR | stat.S_IWUSR  # 0600
+    fd = os.open(backup_path, flags, mode)
+    os.close(fd)
 
     source: sqlite3.Connection | None = None
     destination: sqlite3.Connection | None = None
@@ -44,7 +59,7 @@ def create_sanitized_database_backup(
         source.backup(destination)
         destination.commit()
 
-        # Sanitize sensitive credential fields
+        # Sanitize sensitive credential fields with strict fail-closed policy
         try:
             destination.execute("""
                 UPDATE users
@@ -54,8 +69,9 @@ def create_sanitized_database_backup(
             """)
             destination.commit()
             destination.execute("VACUUM")
-        except sqlite3.OperationalError as e:
-            logger.warning(f"[DB-BACKUP] Redaction warning: {e}")
+        except Exception as e:
+            logger.error(f"[DB-BACKUP] Redaction failed: {e}")
+            raise RuntimeError(f"Database backup sanitization failed: {e}")
 
         logger.info(f"[DB-BACKUP] Sanitized backup created successfully: {backup_path}")
         return backup_path

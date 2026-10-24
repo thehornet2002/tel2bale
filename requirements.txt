@@ -7,3 +7,4 @@ aioboto3==15.5.0
 redis==8.1.0
 pillow==13.0.0
 yt-dlp==2026.10.21
+cryptography==50.0.2

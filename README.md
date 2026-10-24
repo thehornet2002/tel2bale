@@ -106,8 +106,10 @@ sudo systemctl enable --now redis-server
 
 #### 2. Clone Repository & Setup Virtual Environment
 ```bash
-git clone https://github.com/thehornet2002/tel2bale.git
-cd tel2bale
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin tel2bale 2>/dev/null || true
+sudo mkdir -p /opt/tel2bale
+sudo git clone https://github.com/thehornet2002/tel2bale.git /opt/tel2bale
+cd /opt/tel2bale
 
 python3 -m venv .venv
 source .venv/bin/activate
@@ -120,6 +122,8 @@ pip install -r requirements.txt
 ```bash
 cp example.env .env
 nano .env
+sudo chown -R tel2bale:tel2bale /opt/tel2bale
+sudo chmod 600 /opt/tel2bale/.env
 ```
 
 #### 4. Test Run
@@ -133,7 +137,7 @@ Create service file `/etc/systemd/system/tel2bale.service`:
 sudo nano /etc/systemd/system/tel2bale.service
 ```
 
-Paste configuration (adjust `/root/tel2bale` path if installed in another directory):
+Paste configuration:
 ```ini
 [Unit]
 Description=Tel2Bale Telegram to Bale Bridge Bot Daemon
@@ -141,11 +145,17 @@ After=network.target redis-server.service
 
 [Service]
 Type=simple
-User=root
-WorkingDirectory=/root/tel2bale
-ExecStart=/root/tel2bale/.venv/bin/python /root/tel2bale/main.py
+User=tel2bale
+Group=tel2bale
+WorkingDirectory=/opt/tel2bale
+ExecStart=/opt/tel2bale/.venv/bin/python /opt/tel2bale/main.py
 Restart=always
 RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/tel2bale/bot.db /opt/tel2bale/downloads /opt/tel2bale/backups /opt/tel2bale/cookies /opt/tel2bale/logs /opt/tel2bale/.env
 
 [Install]
 WantedBy=multi-user.target

@@ -1,4 +1,13 @@
+import os
 from typing import Any
+
+try:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.hazmat.primitives import hashes
+    HAS_CRYPTOGRAPHY = True
+except ImportError:
+    HAS_CRYPTOGRAPHY = False
 
 import config
 from db.db_async import get_async_db, get_async_db_immediate
@@ -750,36 +759,110 @@ async def get_all_telegram_ids() -> list[int]:
 
 
 # =========================
+# Symmetric Encryption for Stored Sensitive Credentials
+# =========================
+
+_ENC_PREFIX = "enc:gcm:"
+
+
+def _get_encryption_key() -> bytes | None:
+    seed = (
+        os.getenv("ENCRYPTION_KEY")
+        or config.TEL_BOT_TOKEN
+        or config.TEL_API_HASH
+        or ""
+    ).strip()
+    if not seed or not HAS_CRYPTOGRAPHY:
+        return None
+    # Derive deterministic 32-byte key
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b"tel2bale_storage_salt_v1",
+        iterations=50_000,
+    )
+    return kdf.derive(seed.encode("utf-8"))
+
+
+def encrypt_credential(value: str | None) -> str | None:
+    if not value or not isinstance(value, str):
+        return value
+    if value.startswith(_ENC_PREFIX):
+        return value
+    key = _get_encryption_key()
+    if not key or not HAS_CRYPTOGRAPHY:
+        return value
+    try:
+        aesgcm = AESGCM(key)
+        nonce = os.urandom(12)
+        ct = aesgcm.encrypt(nonce, value.encode("utf-8"), None)
+        import base64
+        encoded = base64.b64encode(nonce + ct).decode("ascii")
+        return f"{_ENC_PREFIX}{encoded}"
+    except Exception as e:
+        logger.warning(f"[CRYPTO] Credential encryption failed: {e}")
+        return value
+
+
+def decrypt_credential(value: str | None) -> str | None:
+    if not value or not isinstance(value, str):
+        return value
+    if not value.startswith(_ENC_PREFIX):
+        return value
+    key = _get_encryption_key()
+    if not key or not HAS_CRYPTOGRAPHY:
+        return value
+    try:
+        import base64
+        raw = base64.b64decode(value[len(_ENC_PREFIX):])
+        nonce = raw[:12]
+        ct = raw[12:]
+        aesgcm = AESGCM(key)
+        decrypted = aesgcm.decrypt(nonce, ct, None)
+        return decrypted.decode("utf-8")
+    except Exception as e:
+        logger.warning(f"[CRYPTO] Credential decryption failed: {e}")
+        return value
+
+
+# =========================
 # Arvan Storage credentials
 # =========================
 
 async def get_access_key(tg_id: int) -> str | None:
-    return await _get_user_field(tg_id, "access_key", None)
+    val = await _get_user_field(tg_id, "access_key", None)
+    return decrypt_credential(val)
 
 
 async def set_access_key(tg_id: int, access_key: str) -> bool:
-    return await _update_user_field(tg_id, "access_key", access_key)
+    enc_val = encrypt_credential(access_key)
+    return await _update_user_field(tg_id, "access_key", enc_val)
 
 
 async def get_secret_key(tg_id: int) -> str | None:
-    return await _get_user_field(tg_id, "secret_key", None)
+    val = await _get_user_field(tg_id, "secret_key", None)
+    return decrypt_credential(val)
 
 
 async def set_secret_key(tg_id: int, secret_key: str) -> bool:
-    return await _update_user_field(tg_id, "secret_key", secret_key)
+    enc_val = encrypt_credential(secret_key)
+    return await _update_user_field(tg_id, "secret_key", enc_val)
 
 
 async def get_bale_token(tg_id: int) -> str:
     if tg_id in _BALE_TOKEN_CACHE:
         return _BALE_TOKEN_CACHE[tg_id]
     val = await _get_user_field(tg_id, "bale_token", "") or ""
-    _BALE_TOKEN_CACHE[tg_id] = val
-    return val
+    decrypted = decrypt_credential(val) or ""
+    _BALE_TOKEN_CACHE[tg_id] = decrypted
+    return decrypted
 
 
 async def set_bale_token(tg_id: int, bale_token: str) -> bool:
     _BALE_TOKEN_CACHE[tg_id] = bale_token
-    return await _update_user_field(tg_id, "bale_token", bale_token)
+    enc_val = encrypt_credential(bale_token)
+    return await _update_user_field(tg_id, "bale_token", enc_val)
+
 
 async def get_s3_endpoint(tg_id: int) -> str | None:
     return await _get_user_field(tg_id, "s3_endpoint", None)

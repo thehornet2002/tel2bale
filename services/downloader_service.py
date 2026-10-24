@@ -107,9 +107,9 @@ ALLOWED_MEDIA_DOMAINS = (
 
 async def validate_media_target_url(url: str) -> str | None:
     """
-    Validate target URL against SSRF and enforce domain allowlist:
+    Validate target URL against SSRF and enforce exact domain allowlist:
     1. Ensures scheme is https://.
-    2. Hostname strictly belongs to ALLOWED_MEDIA_DOMAINS.
+    2. Hostname strictly matches allowed domains without wildcards.
     3. Resolves DNS strictly against private/loopback/link-local/metadata IPs.
     """
     try:
@@ -121,7 +121,7 @@ async def validate_media_target_url(url: str) -> str | None:
         parsed = urlparse(validated)
         host = (parsed.hostname or "").lower()
 
-        if not any(host == d or host.endswith(f".{d}") for d in ALLOWED_MEDIA_DOMAINS):
+        if host not in ALLOWED_MEDIA_DOMAINS:
             logger.warning(f"[DOWNLOADER] Rejected URL domain not in media allowlist: {host}")
             return None
 
@@ -132,8 +132,14 @@ async def validate_media_target_url(url: str) -> str | None:
 
 
 async def fetch_spotify_metadata(url: str) -> dict | None:
-    """Fetch Spotify track metadata using oEmbed without API credentials."""
-    oembed_url = f"https://open.spotify.com/oembed?url={url}"
+    """Fetch Spotify track metadata using oEmbed with URL encoding and SSRF pre-validation."""
+    from urllib.parse import quote
+    validated_url = await validate_media_target_url(url)
+    if not validated_url:
+        return None
+
+    encoded_url = quote(validated_url, safe="")
+    oembed_url = f"https://open.spotify.com/oembed?url={encoded_url}"
     try:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
             async with session.get(oembed_url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
@@ -266,6 +272,19 @@ def _sync_download(
 
     target_url = spotify_query if (is_spotify and spotify_query) else url
 
+    if is_spotify and spotify_query:
+        # Pre-check search result duration before downloading
+        check_opts = _get_base_ydl_opts(user_id)
+        with yt_dlp.YoutubeDL(check_opts) as ydl_check:
+            search_res = ydl_check.extract_info(spotify_query, download=False)
+            if "entries" in search_res and search_res["entries"]:
+                first_entry = search_res["entries"][0]
+                dur = first_entry.get("duration")
+                if dur and dur > MAX_MEDIA_DURATION_SECONDS:
+                    raise ValueError(
+                        f"مدت زمان قطعه صوتی ({dur // 60} دقیقه) از حداکثر سقف مجاز سرور ({MAX_MEDIA_DURATION_SECONDS // 60} دقیقه) بیشتر است."
+                    )
+
     if quality in ("audio", "320k", "192k", "128k") or is_spotify:
         bitrate = "320" if quality == "320k" else ("128" if quality == "128k" else "192")
         opts.update({
@@ -312,6 +331,13 @@ def _sync_download(
         raise FileNotFoundError("فایل دانلودشده نامعتبر بوده یا یافت نشد.")
 
     file_size = os.path.getsize(downloaded_file)
+    if file_size > MAX_MEDIA_FILESIZE_BYTES:
+        try:
+            os.remove(downloaded_file)
+        except Exception:
+            pass
+        raise ValueError(f"حجم فایل نهایی ({file_size / (1024*1024):.1f} MB) از حداکثر سقف مجاز (500 MB) عبور کرد.")
+
     return downloaded_file, title, file_size
 
 
