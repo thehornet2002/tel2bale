@@ -298,7 +298,7 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
                 user_id=user_id,
             )
 
-            bale_caption = f"🎬 {title}\n📦 حجم: {file_size_mb:.1f} MB\n🔗 لینک دانلود مستقیم (یک ساعته):\n{link}"
+            bale_caption = f"🎬 {title}\n📦 حجم: {file_size_mb:.1f} MB\n🔗 لینک دانلود مستقیم (۱۵ دقیقه‌ای):\n{link}"
             await bale_bot.send_message(bot_token, bale_id, bale_caption)
 
         # Finalize and commit quota reservation so it cannot be rolled back

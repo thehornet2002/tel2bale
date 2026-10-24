@@ -2,11 +2,12 @@
 منطق اصلی فوروارد پیام‌ها از تلگرام به بله (شامل آپلود فایل‌های حجیم روی S3).
 """
 import os
+import secrets
 from pyrogram.types import Message
 from db import model_async
 from services.bale_service import bale_bot
 from services import s3_service
-from services.quota_service import check_and_update_quota, rollback_quota
+from services.quota_service import check_and_update_quota, rollback_quota, finalize_quota
 from utils.keyboards import build_back_keyboard
 from config import MAX_FILE_SIZE, IN_MEMORY
 from utils.logger import get_logger
@@ -99,7 +100,8 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
                 reply_markup=build_back_keyboard()
             )
 
-    has_quota = await check_and_update_quota(user_id, file_size)
+    res_id = f"fwd_{secrets.token_urlsafe(24)}"
+    has_quota = await check_and_update_quota(user_id, file_size, reservation_id=res_id)
     if not has_quota:
         return await message.reply_text('حجم مجاز شما به اتمام رسیده است.')
 
@@ -121,17 +123,18 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
                 endpoint_url=s3_endpoint,
                 user_id=user_id,
             )
-            result_msg = 'لینک موقت (یک ساعته) :' + '\n' + link
+            result_msg = 'لینک موقت (۱۵ دقیقه‌ای) :' + '\n' + link
             await bale_bot.send_message(bot_token, bale_id, result_msg)
             await status_msg.edit_text(result_msg)
 
             if message.caption:
                 await bale_bot.send_message(bot_token, bale_id, message.caption)
 
+            await finalize_quota(res_id)
             return  # Successful: return early
 
         except s3_service.S3StorageQuotaExceeded:
-            await rollback_quota(user_id, file_size)
+            await rollback_quota(user_id, file_size, reservation_id=res_id)
             from utils.keyboards import build_s3_purge_confirmation_keyboard
             await message.reply_text(
                 "⚠️ **فضای باکت S3 شما تکمیل شده است!**\n\n"
@@ -141,7 +144,7 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
             return
 
         except Exception as e:
-            await rollback_quota(user_id, file_size)
+            await rollback_quota(user_id, file_size, reservation_id=res_id)
             logger.error(f"[FORWARD] S3 upload error for user {user_id}: {e}")
             await message.reply_text("❌ خطا در فرآیند آپلود به فضای ابری S3. لطفاً تنظیمات S3 خود را بررسی فرمایید.")
             return  # Prevent fallthrough to direct forwarding
@@ -180,16 +183,18 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
             await bale_bot.send_animation(bot_token, bale_id, file, caption)
         elif message.video_note:
             await bale_bot.send_video(bot_token, bale_id, file)
+            await finalize_quota(res_id)
             await status_msg.edit_text('توجه: ویدئوی گرد به صورت ویدئوی معمولی ارسال شد.')
             return
         else:
-            await rollback_quota(user_id, file_size)
+            await rollback_quota(user_id, file_size, reservation_id=res_id)
             return await status_msg.edit_text('این نوع پیام پشتیبانی نمی‌شود.')
 
+        await finalize_quota(res_id)
         await status_msg.edit_text('پیام با موفقیت ارسال شد.')
 
     except Exception as e:
-        await rollback_quota(user_id, file_size)
+        await rollback_quota(user_id, file_size, reservation_id=res_id)
         await message.reply_text(text=format_bale_error(e), reply_markup=build_back_keyboard())
 
     finally:

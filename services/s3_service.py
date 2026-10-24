@@ -61,7 +61,7 @@ async def upload_file(
     user_id: int | None = None,
     bucket_name: str = "my-telegram-bot",
     content_type: str = "application/octet-stream",
-    expires_in: int = 3600,
+    expires_in: int = 900,
 ) -> str:
     """
     Upload file to S3 storage with user-isolated prefix:
@@ -129,18 +129,24 @@ async def upload_file(
 async def verify_credentials(access_key: str, secret_key: str, endpoint_url: str, bucket_name: str = "my-telegram-bot") -> bool:
     """
     Validate S3 credentials with least-privilege principle:
-    Tests connectivity using head_bucket or put_object check rather than administrative list_buckets.
+    Tests connectivity using head_bucket or a lightweight probe rather than administrative list_buckets.
     """
     try:
         session = await create_connection(access_key, secret_key)
         async with session.client("s3", endpoint_url=endpoint_url) as s3:
             try:
                 await s3.head_bucket(Bucket=bucket_name)
+                return True
             except ClientError as e:
                 code = e.response.get('Error', {}).get('Code', '')
-                # 404 means credentials work and endpoint reachable, but bucket does not exist yet (acceptable)
-                if code not in ('404', 'NoSuchBucket', '403'):
-                    return True
+                if code == '403':
+                    try:
+                        probe_key = "healthcheck_probe.tmp"
+                        await s3.put_object(Bucket=bucket_name, Key=probe_key, Body=b"ok")
+                        await s3.delete_object(Bucket=bucket_name, Key=probe_key)
+                        return True
+                    except Exception:
+                        return False
                 if code in ('404', 'NoSuchBucket'):
                     return True
                 logger.warning(f"[S3] Credential verification returned ClientError {code}")

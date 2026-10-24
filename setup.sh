@@ -44,7 +44,7 @@ if [ -f "main.py" ] && [ -f "requirements.txt" ]; then
     echo -e "${GREEN}✓ Detected existing project directory: $APP_DIR${NC}"
     if [ -d ".git" ]; then
         echo -e "${BLUE}Fetching latest git commits...${NC}"
-        git pull origin main 2>/dev/null || true
+        git pull origin main || echo -e "${YELLOW}Warning: git pull encountered an issue. Continuing with current local copy.${NC}"
     fi
 else
     APP_DIR="/opt/tel2bale"
@@ -52,12 +52,12 @@ else
     cd "$APP_DIR"
     if [ -d ".git" ]; then
         echo -e "${BLUE}Updating existing repository at $APP_DIR...${NC}"
-        git pull origin main 2>/dev/null || true
+        git pull origin main || echo -e "${YELLOW}Warning: git pull encountered an issue. Continuing with current local copy.${NC}"
     else
         echo -e "${BLUE}Cloning repository from GitHub...${NC}"
         apt-get update -qq 2>/dev/null || true
         apt-get install -y -qq git curl jq 2>/dev/null || apt-get install -y git curl jq
-        if ! git clone "https://github.com/$GITHUB_REPO.git" "$APP_DIR" 2>/dev/null; then
+        if ! git clone "https://github.com/$GITHUB_REPO.git" "$APP_DIR"; then
             echo -e "${YELLOW}Git clone failed, downloading release archive...${NC}"
             curl --fail --show-error --location "https://github.com/$GITHUB_REPO/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$APP_DIR"
         fi
@@ -65,6 +65,10 @@ else
 fi
 
 cd "$APP_DIR"
+if [ ! -f "main.py" ]; then
+    echo -e "${RED}Error: main.py not found in $APP_DIR. Fetch failed.${NC}"
+    exit 1
+fi
 mkdir -p logs backups downloads cookies
 
 # ==============================================================================

@@ -334,38 +334,48 @@ def _sync_download(
             "merge_output_format": "mp4",
         })
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        result = ydl.extract_info(target_url, download=True)
-        if "entries" in result and result["entries"]:
-            info_dict = result["entries"][0]
-        else:
-            info_dict = result
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            result = ydl.extract_info(target_url, download=True)
+            if "entries" in result and result["entries"]:
+                info_dict = result["entries"][0]
+            else:
+                info_dict = result
 
-        raw_title = info_dict.get("title") or "downloaded_media"
-        title = re.sub(r"[^\w\s\-.,()]", "", raw_title)[:120]
+            raw_title = info_dict.get("title") or "downloaded_media"
+            title = re.sub(r"[^\w\s\-.,()]", "", raw_title)[:120]
 
-    # Locate downloaded file in downloads directory
-    downloaded_file = None
-    for fname in os.listdir(DOWNLOADS_DIR):
-        if fname.startswith(unique_id):
-            candidate = os.path.join(DOWNLOADS_DIR, fname)
-            _, ext = os.path.splitext(candidate)
-            if ext.lower() in ALLOWED_MEDIA_EXTENSIONS:
-                downloaded_file = candidate
-                break
+        # Locate downloaded file in downloads directory
+        downloaded_file = None
+        for fname in os.listdir(DOWNLOADS_DIR):
+            if fname.startswith(unique_id):
+                candidate = os.path.join(DOWNLOADS_DIR, fname)
+                _, ext = os.path.splitext(candidate)
+                if ext.lower() in ALLOWED_MEDIA_EXTENSIONS:
+                    downloaded_file = candidate
+                    break
 
-    if not downloaded_file or not os.path.exists(downloaded_file):
-        raise FileNotFoundError("فایل دانلودشده نامعتبر بوده یا یافت نشد.")
+        if not downloaded_file or not os.path.exists(downloaded_file):
+            raise FileNotFoundError("فایل دانلودشده نامعتبر بوده یا یافت نشد.")
 
-    file_size = os.path.getsize(downloaded_file)
-    if file_size > MAX_MEDIA_FILESIZE_BYTES:
-        try:
-            os.remove(downloaded_file)
-        except Exception:
-            pass
-        raise ValueError(f"حجم فایل نهایی ({file_size / (1024*1024):.1f} MB) از حداکثر سقف مجاز (500 MB) عبور کرد.")
+        file_size = os.path.getsize(downloaded_file)
+        if file_size > MAX_MEDIA_FILESIZE_BYTES:
+            try:
+                os.remove(downloaded_file)
+            except Exception:
+                pass
+            raise ValueError(f"حجم فایل نهایی ({file_size / (1024*1024):.1f} MB) از حداکثر سقف مجاز (500 MB) عبور کرد.")
 
-    return downloaded_file, title, file_size
+        return downloaded_file, title, file_size
+    except Exception:
+        # Clean up any partial/temporary files matching unique_id on error
+        for fname in os.listdir(DOWNLOADS_DIR):
+            if fname.startswith(unique_id):
+                try:
+                    os.remove(os.path.join(DOWNLOADS_DIR, fname))
+                except Exception:
+                    pass
+        raise
 
 
 # Timeout for end-to-end media download (10 minutes)

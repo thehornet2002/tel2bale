@@ -157,7 +157,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/tel2bale/bot.db /opt/tel2bale/downloads /opt/tel2bale/backups /opt/tel2bale/cookies /opt/tel2bale/logs /opt/tel2bale/.env
+ReadWritePaths=/opt/tel2bale/bot.db /opt/tel2bale/downloads /opt/tel2bale/backups /opt/tel2bale/cookies /opt/tel2bale/logs
 
 [Install]
 WantedBy=multi-user.target

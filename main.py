@@ -10,7 +10,7 @@ from config import (
     ADMIN_IDS,
     TELPROXY,
 )
-from db.model_async import create_tables, add_user, set_admin
+from db.model_async import create_tables, add_user, set_admin, cleanup_stale_reservations
 from db.redis_client import close_redis
 from services.bale_service import bale_bot
 from services.downloader_service import cleanup_stale_downloads
@@ -40,6 +40,7 @@ async def main():
     setup_logger()
     cleanup_stale_downloads(max_age_seconds=3600)
     await create_tables()
+    await cleanup_stale_reservations(max_age_hours=24)
     for admin_id in ADMIN_IDS:
         await add_user(admin_id, is_admin=True)
         await set_admin(admin_id)

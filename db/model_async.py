@@ -576,6 +576,18 @@ async def reserve_download_quota(tg_id: int, file_size_bytes: int | None, reserv
     file_size_gb = file_size_bytes / (1024 ** 3)
 
     async with get_async_db_immediate() as db:
+        if reservation_id:
+            res_cur = await db.execute("""
+                SELECT status FROM download_reservations WHERE reservation_id = ?
+            """, (reservation_id,))
+            try:
+                res_row = await res_cur.fetchone()
+                if res_row is not None:
+                    # Idempotency check: if already reserved, return True without double-incrementing
+                    return res_row["status"] == "reserved"
+            finally:
+                await res_cur.close()
+
         cursor = await db.execute("""
             SELECT downloaded_volume, limit_download
             FROM users
@@ -613,7 +625,7 @@ async def reserve_download_quota(tg_id: int, file_size_bytes: int | None, reserv
 
         if reservation_id:
             await db.execute("""
-                INSERT OR REPLACE INTO download_reservations (reservation_id, telegram_id, size_bytes, status)
+                INSERT INTO download_reservations (reservation_id, telegram_id, size_bytes, status)
                 VALUES (?, ?, ?, 'reserved')
             """, (reservation_id, tg_id, file_size_bytes))
 
@@ -690,6 +702,19 @@ async def commit_download_quota(reservation_id: str | None) -> bool:
             WHERE reservation_id = ? AND status = 'reserved'
         """, (reservation_id,))
     return True
+
+
+async def cleanup_stale_reservations(max_age_hours: int = 24) -> int:
+    """Purge old quota reservation tracking records older than max_age_hours."""
+    async with get_async_db() as db:
+        cursor = await db.execute("""
+            DELETE FROM download_reservations
+            WHERE created_at < datetime('now', '-' || ? || ' hours')
+        """, (max_age_hours,))
+        deleted = cursor.rowcount
+        if deleted > 0:
+            logger.info(f"[MODEL-ASYNC] Purged {deleted} stale download reservation records")
+        return deleted
 
 
 async def set_limit_download_all(limit: float) -> None:
