@@ -41,7 +41,7 @@ async def set_s3_endpoint(message: Message, user_id: int):
         return
     access_key = await model_async.get_access_key(user_id)
     secret_key = await model_async.get_secret_key(user_id)
-    valid_s3 = await s3_service.verify_credentials(access_key=access_key, secret_key=secret_key, endpoint_url=endpoint_url)
+    valid_s3 = await s3_service.verify_credentials(access_key=access_key, secret_key=secret_key, endpoint_url=endpoint_url, user_id=user_id)
     if not valid_s3:
         await model_async.set_access_key(user_id, None)
         await model_async.set_secret_key(user_id, None)

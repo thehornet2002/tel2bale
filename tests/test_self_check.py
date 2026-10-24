@@ -526,6 +526,22 @@ async def test_fail_closed_encryption_and_s3():
     assert await s3_service.empty_bucket(mock_session, "https://s3.example.com", user_id=0) is False
     assert await s3_service.empty_bucket(mock_session, "https://s3.example.com", user_id=-1) is False
 
+    # Cleanup stale reservations refund test
+    test_u = 777000111
+    await model_async.add_user(test_u)
+    await model_async.set_limit_download(test_u, 5.0)
+    stale_res_id = f"stale_res_{test_u}"
+    assert await model_async.reserve_download_quota(test_u, 1024 * 1024 * 1024, reservation_id=stale_res_id) is True
+    # Force created_at to 48 hours ago
+    async with model_async.get_async_db() as db:
+        await db.execute("UPDATE download_reservations SET created_at = datetime('now', '-48 hours') WHERE reservation_id = ?", (stale_res_id,))
+    # Run cleanup with 24-hour cutoff
+    purged = await model_async.cleanup_stale_reservations(max_age_hours=24)
+    assert purged >= 1
+    # Check that quota was safely refunded
+    quota_info = await model_async.get_user_quota_info(test_u)
+    assert quota_info["remaining_gb"] == 5.0
+
 
 async def main():
     await test_parser()

@@ -126,10 +126,17 @@ async def upload_file(
             logger.error(f"[S3] Failed to remove temporary file {file_path}: {e}")
 
 
-async def verify_credentials(access_key: str, secret_key: str, endpoint_url: str, bucket_name: str = "my-telegram-bot") -> bool:
+async def verify_credentials(
+    access_key: str,
+    secret_key: str,
+    endpoint_url: str,
+    user_id: int | None = None,
+    bucket_name: str = "my-telegram-bot"
+) -> bool:
     """
     Validate S3 credentials with least-privilege principle:
-    Tests connectivity using head_bucket or a lightweight probe rather than administrative list_buckets.
+    Tests connectivity using head_bucket, or a user-scoped probe (users/{user_id}/.healthcheck_*.tmp).
+    Strictly fail-closed: returns False if bucket is not found (404/NoSuchBucket) so user creates it first.
     """
     try:
         session = await create_connection(access_key, secret_key)
@@ -139,16 +146,21 @@ async def verify_credentials(access_key: str, secret_key: str, endpoint_url: str
                 return True
             except ClientError as e:
                 code = e.response.get('Error', {}).get('Code', '')
+                if code in ('404', 'NoSuchBucket'):
+                    logger.warning(f"[S3] Bucket '{bucket_name}' not found on endpoint '{endpoint_url}'")
+                    return False
                 if code == '403':
+                    # If bucket root is restricted by IAM prefix policy, test with a user-scoped probe
+                    probe_key = f"users/{user_id}/.healthcheck_{uuid.uuid4().hex[:8]}.tmp" if user_id else f".healthcheck_{uuid.uuid4().hex[:8]}.tmp"
                     try:
-                        probe_key = "healthcheck_probe.tmp"
                         await s3.put_object(Bucket=bucket_name, Key=probe_key, Body=b"ok")
-                        await s3.delete_object(Bucket=bucket_name, Key=probe_key)
+                        try:
+                            await s3.delete_object(Bucket=bucket_name, Key=probe_key)
+                        except Exception:
+                            pass
                         return True
                     except Exception:
                         return False
-                if code in ('404', 'NoSuchBucket'):
-                    return True
                 logger.warning(f"[S3] Credential verification returned ClientError {code}")
                 return False
         return True

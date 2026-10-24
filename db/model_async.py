@@ -186,6 +186,31 @@ async def create_tables() -> None:
         """)
         await db.execute("CREATE INDEX IF NOT EXISTS idx_poll_votes ON poll_votes (poll_id, telegram_id)")
 
+        # Verify foreign key constraint on poll_votes for legacy databases
+        fk_cursor = await db.execute("PRAGMA foreign_key_list(poll_votes)")
+        try:
+            fk_rows = await fk_cursor.fetchall()
+            if not fk_rows:
+                await db.execute("""
+                    CREATE TABLE IF NOT EXISTS poll_votes_new (
+                        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                        poll_id     INTEGER NOT NULL,
+                        telegram_id INTEGER NOT NULL,
+                        option_idx  INTEGER NOT NULL,
+                        created_at  TEXT DEFAULT (datetime('now','localtime')),
+                        UNIQUE(poll_id, telegram_id),
+                        FOREIGN KEY (poll_id) REFERENCES polls (id) ON DELETE CASCADE
+                    )
+                """)
+                await db.execute("INSERT OR IGNORE INTO poll_votes_new SELECT * FROM poll_votes")
+                await db.execute("DROP TABLE poll_votes")
+                await db.execute("ALTER TABLE poll_votes_new RENAME TO poll_votes")
+                await db.execute("CREATE INDEX IF NOT EXISTS idx_poll_votes ON poll_votes (poll_id, telegram_id)")
+        except Exception:
+            pass
+        finally:
+            await fk_cursor.close()
+
         await db.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 key   TEXT PRIMARY KEY,
@@ -636,28 +661,45 @@ async def reserve_download_quota(tg_id: int, file_size_bytes: int | None, reserv
         return True
 
 
-async def release_download_quota(tg_id: int, file_size_bytes: int | None, reservation_id: str | None = None) -> bool:
+async def release_download_quota(tg_id: int, file_size_bytes: int | None = None, reservation_id: str | None = None) -> bool:
     """
     Atomically rolls back a previously reserved quota amount with idempotency guarantees.
-    If reservation_id is provided, verifies that reservation is still 'reserved' and marks it 'rolled_back'
-    so double-rollbacks are impossible.
+    Strictly verifies ownership (telegram_id matches reservation) and uses exact reserved size_bytes.
     """
-    if not file_size_bytes or file_size_bytes <= 0:
-        return True
-
-    file_size_gb = file_size_bytes / (1024 ** 3)
-
     async with get_async_db_immediate() as db:
+        actual_bytes = file_size_bytes or 0
         if reservation_id:
+            res_cur = await db.execute("""
+                SELECT size_bytes, status, telegram_id
+                FROM download_reservations
+                WHERE reservation_id = ?
+            """, (reservation_id,))
+            try:
+                res_row = await res_cur.fetchone()
+                if not res_row:
+                    return False
+                if res_row["telegram_id"] != tg_id:
+                    logger.warning(f"[MODEL-ASYNC] Quota release rejected: reservation owner mismatch ({res_row['telegram_id']} != {tg_id})")
+                    return False
+                if res_row["status"] != "reserved":
+                    # Already committed or rolled back; idempotent no-op
+                    return True
+                actual_bytes = res_row["size_bytes"]
+            finally:
+                await res_cur.close()
+
             cursor = await db.execute("""
                 UPDATE download_reservations
                 SET status = 'rolled_back'
-                WHERE reservation_id = ? AND status = 'reserved'
-            """, (reservation_id,))
+                WHERE reservation_id = ? AND telegram_id = ? AND status = 'reserved'
+            """, (reservation_id, tg_id))
             if cursor.rowcount == 0:
-                # Already rolled back or committed; do not deduct twice
                 return True
 
+        if actual_bytes <= 0:
+            return True
+
+        file_size_gb = actual_bytes / (1024 ** 3)
         cursor = await db.execute("""
             SELECT downloaded_volume
             FROM users
@@ -691,22 +733,61 @@ async def release_download_quota(tg_id: int, file_size_bytes: int | None, reserv
         return True
 
 
-async def commit_download_quota(reservation_id: str | None) -> bool:
+async def commit_download_quota(reservation_id: str | None, tg_id: int | None = None) -> bool:
     """Commit quota reservation so it can no longer be rolled back."""
     if not reservation_id:
         return True
     async with get_async_db() as db:
-        await db.execute("""
-            UPDATE download_reservations
-            SET status = 'committed'
-            WHERE reservation_id = ? AND status = 'reserved'
-        """, (reservation_id,))
-    return True
+        if tg_id:
+            cursor = await db.execute("""
+                UPDATE download_reservations
+                SET status = 'committed'
+                WHERE reservation_id = ? AND telegram_id = ? AND status = 'reserved'
+            """, (reservation_id, tg_id))
+        else:
+            cursor = await db.execute("""
+                UPDATE download_reservations
+                SET status = 'committed'
+                WHERE reservation_id = ? AND status = 'reserved'
+            """, (reservation_id,))
+        return cursor.rowcount == 1
 
 
 async def cleanup_stale_reservations(max_age_hours: int = 24) -> int:
-    """Purge old quota reservation tracking records older than max_age_hours."""
-    async with get_async_db() as db:
+    """
+    Purge old quota reservation records older than max_age_hours.
+    Strictly refunds any uncommitted 'reserved' records before deleting them.
+    """
+    async with get_async_db_immediate() as db:
+        # 1. Find all stale reservations still in 'reserved' state to refund user quota
+        cur = await db.execute("""
+            SELECT reservation_id, telegram_id, size_bytes
+            FROM download_reservations
+            WHERE status = 'reserved' AND created_at < datetime('now', '-' || ? || ' hours')
+        """, (max_age_hours,))
+        try:
+            stale_reserved = await cur.fetchall()
+            for r in stale_reserved:
+                res_id = r["reservation_id"]
+                u_id = r["telegram_id"]
+                s_bytes = r["size_bytes"]
+                s_gb = s_bytes / (1024 ** 3)
+                await db.execute("""
+                    UPDATE users
+                    SET downloaded_volume = MAX(0.0, downloaded_volume - ?),
+                        updated_at = datetime('now','localtime')
+                    WHERE telegram_id = ?
+                """, (s_gb, u_id))
+                await db.execute("""
+                    UPDATE download_reservations
+                    SET status = 'rolled_back'
+                    WHERE reservation_id = ?
+                """, (res_id,))
+                logger.info(f"[MODEL-ASYNC] Refunded stale reservation {res_id} ({s_gb:.4f} GB) to user {u_id}")
+        finally:
+            await cur.close()
+
+        # 2. Delete all records older than max_age_hours
         cursor = await db.execute("""
             DELETE FROM download_reservations
             WHERE created_at < datetime('now', '-' || ? || ' hours')
