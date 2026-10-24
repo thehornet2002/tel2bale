@@ -86,6 +86,18 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
 
     file_size = getattr(media_obj, 'file_size', 0)
 
+    # Check S3 prerequisites early before reserving quota if file exceeds MAX_FILE_SIZE
+    if file_size > MAX_FILE_SIZE:
+        access_key = await model_async.get_access_key(user_id)
+        secret_key = await model_async.get_secret_key(user_id)
+        s3_endpoint = await model_async.get_s3_endpoint(user_id)
+        if not access_key or not secret_key or not s3_endpoint:
+            await model_async.set_state(user_id, state='home')
+            return await message.reply_text(
+                'حجم فایل بالاتر از سقف ارسال مستقیم است. لطفاً ابتدا اطلاعات S3 خود را تنظیم کنید.',
+                reply_markup=build_back_keyboard()
+            )
+
     has_quota = await check_and_update_quota(user_id, file_size)
     if not has_quota:
         return await message.reply_text('حجم مجاز شما به اتمام رسیده است.')
@@ -94,30 +106,6 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
     if file_size > MAX_FILE_SIZE:
         file_path = None
         try:
-            access_key = await model_async.get_access_key(user_id)
-            if not access_key:
-                await model_async.set_state(user_id, state='home')
-                return await message.reply_text(
-                    'لطفا در ابتدا S3 را تنظیم کنید.',
-                    reply_markup=build_back_keyboard()
-                )
-
-            secret_key = await model_async.get_secret_key(user_id)
-            if not secret_key:
-                await model_async.set_state(user_id, state='home')
-                return await message.reply_text(
-                    'لطفا در ابتدا S3 را تنظیم کنید.',
-                    reply_markup=build_back_keyboard()
-                )
-
-            s3_endpoint = await model_async.get_s3_endpoint(user_id)
-            if not s3_endpoint:
-                await model_async.set_state(user_id, state='home')
-                return await message.reply_text(
-                    'لطفا در ابتدا S3 را تنظیم کنید.',
-                    reply_markup=build_back_keyboard()
-                )
-
             s3_connection = await s3_service.create_connection(access_key, secret_key)
 
             # Save status message reference for updates
@@ -194,6 +182,7 @@ async def forward(message: Message, user_id: int, bypass_captcha: bool = False):
             await status_msg.edit_text('توجه: ویدئوی گرد به صورت ویدئوی معمولی ارسال شد.')
             return
         else:
+            await rollback_quota(user_id, file_size)
             return await status_msg.edit_text('این نوع پیام پشتیبانی نمی‌شود.')
 
         await status_msg.edit_text('پیام با موفقیت ارسال شد.')

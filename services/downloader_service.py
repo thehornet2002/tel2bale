@@ -93,14 +93,39 @@ def detect_platform(url: str) -> str:
     return "generic"
 
 
+ALLOWED_MEDIA_DOMAINS = (
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "youtu.be",
+    "instagram.com",
+    "www.instagram.com",
+    "open.spotify.com",
+    "spotify.link",
+)
+
+
 async def validate_media_target_url(url: str) -> str | None:
     """
-    Validate target URL against SSRF:
-    Ensures public HTTPS, non-private DNS resolution, and non-local targets.
+    Validate target URL against SSRF and enforce domain allowlist:
+    1. Ensures scheme is https://.
+    2. Hostname strictly belongs to ALLOWED_MEDIA_DOMAINS.
+    3. Resolves DNS strictly against private/loopback/link-local/metadata IPs.
     """
     try:
         validated = await validate_public_https_url(url, resolve_dns=True)
-        return validated if validated else None
+        if not validated:
+            return None
+
+        from urllib.parse import urlparse
+        parsed = urlparse(validated)
+        host = (parsed.hostname or "").lower()
+
+        if not any(host == d or host.endswith(f".{d}") for d in ALLOWED_MEDIA_DOMAINS):
+            logger.warning(f"[DOWNLOADER] Rejected URL domain not in media allowlist: {host}")
+            return None
+
+        return validated
     except Exception as e:
         logger.warning(f"[DOWNLOADER] URL validation failed for {url}: {e}")
         return None

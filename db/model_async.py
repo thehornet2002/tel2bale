@@ -164,7 +164,7 @@ async def create_tables() -> None:
         except Exception:
             pass
 
-        # Poll votes table
+        # Poll votes table with foreign key cascade
         await db.execute("""
             CREATE TABLE IF NOT EXISTS poll_votes (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -172,7 +172,8 @@ async def create_tables() -> None:
                 telegram_id INTEGER NOT NULL,
                 option_idx  INTEGER NOT NULL,
                 created_at  TEXT DEFAULT (datetime('now','localtime')),
-                UNIQUE(poll_id, telegram_id)
+                UNIQUE(poll_id, telegram_id),
+                FOREIGN KEY (poll_id) REFERENCES polls (id) ON DELETE CASCADE
             )
         """)
         await db.execute("CREATE INDEX IF NOT EXISTS idx_poll_votes ON poll_votes (poll_id, telegram_id)")
@@ -1090,19 +1091,21 @@ async def get_poll(poll_id: int) -> dict | None:
 
 
 async def record_poll_vote(poll_id: int, telegram_id: int, option_idx: int) -> bool:
-    """Validate that poll exists, is active, and option index is within bounds before voting."""
-    poll = await get_poll(poll_id)
-    if not poll or not poll.get("is_active"):
-        logger.warning(f"[POLL] Attempted vote on inactive or non-existent poll {poll_id}")
-        return False
-
-    options = poll.get("options", [])
-    if not isinstance(options, list) or not (0 <= option_idx < len(options)):
-        logger.warning(f"[POLL] Invalid option index {option_idx} for poll {poll_id} with {len(options)} options")
-        return False
-
+    """Validate that poll exists, is active, and option index is within bounds transactionally."""
+    import json
     async with get_async_db() as db:
         try:
+            cursor = await db.execute("SELECT options, is_active FROM polls WHERE id = ?", (poll_id,))
+            row = await cursor.fetchone()
+            if not row or not row["is_active"]:
+                logger.warning(f"[POLL] Attempted vote on inactive or non-existent poll {poll_id}")
+                return False
+
+            options = json.loads(row["options"])
+            if not isinstance(options, list) or not (0 <= option_idx < len(options)):
+                logger.warning(f"[POLL] Invalid option index {option_idx} for poll {poll_id}")
+                return False
+
             await db.execute("""
                 INSERT INTO poll_votes (poll_id, telegram_id, option_idx)
                 VALUES (?, ?, ?)

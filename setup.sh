@@ -260,9 +260,22 @@ EOF
 fi
 
 # ==============================================================================
-# 6. Setup and Start Systemd Daemon Service
+# 6. Setup and Start Systemd Daemon Service (Hardened Dedicated User)
 # ==============================================================================
-echo -e "\n${YELLOW}Step 6: Setting up systemd background daemon service...${NC}"
+echo -e "\n${YELLOW}Step 6: Setting up hardened systemd background daemon service...${NC}"
+
+# Create dedicated system user for bot execution if not already present
+BOT_USER="tel2bale"
+if ! id -u "$BOT_USER" >/dev/null 2>&1; then
+    echo -e "${BLUE}Creating dedicated system user ($BOT_USER)...${NC}"
+    useradd --system --no-create-home --shell /usr/sbin/nologin "$BOT_USER" 2>/dev/null || true
+fi
+
+# Ensure strict file ownership and permissions
+chown -R "$BOT_USER:$BOT_USER" "$APP_DIR"
+chmod 700 "$APP_DIR/cookies" 2>/dev/null || true
+chmod 600 "$APP_DIR/.env" 2>/dev/null || true
+
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 cat <<EOF > "$SERVICE_FILE"
@@ -272,12 +285,17 @@ After=network.target redis-server.service
 
 [Service]
 Type=simple
-User=root
+User=$BOT_USER
+Group=$BOT_USER
 WorkingDirectory=$APP_DIR
 ExecStart=$APP_DIR/.venv/bin/python $APP_DIR/main.py
 Restart=always
 RestartSec=5
 StartLimitIntervalSec=0
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
 StandardOutput=journal
 StandardError=journal
 

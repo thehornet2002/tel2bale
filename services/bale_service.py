@@ -1,4 +1,5 @@
 import asyncio
+import os
 import aiohttp
 import inspect
 import uuid
@@ -180,28 +181,24 @@ class BaleService:
         filename: str,
         content_type: str,
         caption: str | None = None,
-    ) -> aiohttp.FormData:
+    ) -> tuple[aiohttp.FormData, list]:
+        """
+        Build multipart form data.
+        Returns (FormData, list_of_opened_file_pointers) so caller can close them reliably.
+        """
         data = aiohttp.FormData()
         data.add_field("chat_id", str(chat_id))
+        opened_fps = []
 
-        # Stream disk files directly to prevent high RAM allocation and OOM
-        if isinstance(file_obj, (str, bytes, bytearray)):
-            if isinstance(file_obj, str) and os.path.isfile(file_obj):
-                fp = open(file_obj, "rb")
-                data.add_field(
-                    field_name,
-                    fp,
-                    filename=filename,
-                    content_type=content_type,
-                )
-            else:
-                file_bytes = await self._to_bytes(file_obj)
-                data.add_field(
-                    field_name,
-                    file_bytes,
-                    filename=filename,
-                    content_type=content_type,
-                )
+        if isinstance(file_obj, str) and os.path.isfile(file_obj):
+            fp = open(file_obj, "rb")
+            opened_fps.append(fp)
+            data.add_field(
+                field_name,
+                fp,
+                filename=filename,
+                content_type=content_type,
+            )
         else:
             file_bytes = await self._to_bytes(file_obj)
             data.add_field(
@@ -214,7 +211,7 @@ class BaleService:
         if caption:
             data.add_field("caption", caption)
 
-        return data
+        return data, opened_fps
 
     async def send_message(
         self,
@@ -233,6 +230,34 @@ class BaleService:
             json=payload
         )
 
+    async def _send_media_request(
+        self,
+        bale_bot_token: str,
+        endpoint: str,
+        chat_id: int,
+        field_name: str,
+        file_obj,
+        filename: str,
+        content_type: str,
+        caption: str | None = None,
+    ):
+        data, opened_fps = await self._build_media_form(
+            chat_id, field_name, file_obj, filename, content_type, caption
+        )
+        try:
+            return await self._request(
+                bale_bot_token,
+                endpoint,
+                data=data,
+                is_media=True,
+            )
+        finally:
+            for fp in opened_fps:
+                try:
+                    fp.close()
+                except Exception:
+                    pass
+
     async def send_photo(
         self,
         bale_bot_token: str,
@@ -241,15 +266,8 @@ class BaleService:
         caption: str | None = None
     ):
         unique_name = f"{uuid.uuid4().hex}.jpg"
-        data = await self._build_media_form(
-            chat_id, "photo", photo, unique_name, "image/jpeg", caption
-        )
-
-        return await self._request(
-            bale_bot_token,
-            "sendPhoto",
-            data=data,
-            is_media=True,
+        return await self._send_media_request(
+            bale_bot_token, "sendPhoto", chat_id, "photo", photo, unique_name, "image/jpeg", caption
         )
 
     async def send_video(
@@ -260,15 +278,8 @@ class BaleService:
         caption: str | None = None
     ):
         unique_name = f"{uuid.uuid4().hex}.mp4"
-        data = await self._build_media_form(
-            chat_id, "video", video, unique_name, "video/mp4", caption
-        )
-
-        return await self._request(
-            bale_bot_token,
-            "sendVideo",
-            data=data,
-            is_media=True,
+        return await self._send_media_request(
+            bale_bot_token, "sendVideo", chat_id, "video", video, unique_name, "video/mp4", caption
         )
 
     async def send_audio(
@@ -279,15 +290,8 @@ class BaleService:
         caption: str | None = None
     ):
         unique_name = f"{uuid.uuid4().hex}.mp3"
-        data = await self._build_media_form(
-            chat_id, "audio", audio, unique_name, "audio/mpeg", caption
-        )
-
-        return await self._request(
-            bale_bot_token,
-            "sendAudio",
-            data=data,
-            is_media=True,
+        return await self._send_media_request(
+            bale_bot_token, "sendAudio", chat_id, "audio", audio, unique_name, "audio/mpeg", caption
         )
 
     async def send_voice(
@@ -298,15 +302,8 @@ class BaleService:
         caption: str | None = None
     ):
         unique_name = f"{uuid.uuid4().hex}.ogg"
-        data = await self._build_media_form(
-            chat_id, "voice", voice, unique_name, "audio/ogg", caption
-        )
-
-        return await self._request(
-            bale_bot_token,
-            "sendVoice",
-            data=data,
-            is_media=True,
+        return await self._send_media_request(
+            bale_bot_token, "sendVoice", chat_id, "voice", voice, unique_name, "audio/ogg", caption
         )
 
     async def send_document(
@@ -317,20 +314,8 @@ class BaleService:
         filename: str,
         caption: str | None = None
     ):
-        data = await self._build_media_form(
-            chat_id,
-            "document",
-            document,
-            filename,
-            "application/octet-stream",
-            caption,
-        )
-
-        return await self._request(
-            bale_bot_token,
-            "sendDocument",
-            data=data,
-            is_media=True,
+        return await self._send_media_request(
+            bale_bot_token, "sendDocument", chat_id, "document", document, filename, "application/octet-stream", caption
         )
 
     async def send_animation(
@@ -341,15 +326,8 @@ class BaleService:
         caption: str | None = None
     ):
         unique_name = f"{uuid.uuid4().hex}.gif"
-        data = await self._build_media_form(
-            chat_id, "animation", animation, unique_name, "video/mp4", caption
-        )
-
-        return await self._request(
-            bale_bot_token,
-            "sendAnimation",
-            data=data,
-            is_media=True,
+        return await self._send_media_request(
+            bale_bot_token, "sendAnimation", chat_id, "animation", animation, unique_name, "video/mp4", caption
         )
 
     async def send_video_note(
@@ -359,15 +337,8 @@ class BaleService:
         video_note
     ):
         unique_name = f"{uuid.uuid4().hex}.mp4"
-        data = await self._build_media_form(
-            chat_id, "video_note", video_note, unique_name, "video/mp4", None
-        )
-
-        return await self._request(
-            bale_bot_token,
-            "sendVideoNote",
-            data=data,
-            is_media=True,
+        return await self._send_media_request(
+            bale_bot_token, "sendVideoNote", chat_id, "video_note", video_note, unique_name, "video/mp4", None
         )
 
     async def send_location(

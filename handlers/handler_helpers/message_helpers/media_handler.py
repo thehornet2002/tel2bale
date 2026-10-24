@@ -292,6 +292,7 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
             await bale_bot.send_message(bot_token, bale_id, bale_caption)
 
     except s3_service.S3StorageQuotaExceeded:
+        await model_async.release_download_quota(user_id, file_size)
         from utils.keyboards import build_s3_purge_confirmation_keyboard
         try:
             await callback.message.edit_text(
@@ -303,6 +304,7 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
             pass
         return
     except Exception as e:
+        await model_async.release_download_quota(user_id, file_size)
         logger.error(f"[MEDIA] Forwarding downloaded media to Bale failed: {e}")
         try:
             await callback.message.edit_text(
@@ -380,9 +382,6 @@ async def execute_cancel_download(callback: CallbackQuery, user_id: int, token: 
     _PENDING_DOWNLOADS.pop(token, None)
     await callback.answer("دانلود لغو شد.")
     try:
-        await callback.message.delete()
-    except Exception:
-        pass
         await callback.message.delete()
     except Exception:
         pass

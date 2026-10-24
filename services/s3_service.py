@@ -20,13 +20,26 @@ async def create_connection(access_key: str, secret_key: str) -> aioboto3.Sessio
     )
 
 
-async def empty_bucket(session: aioboto3.Session, endpoint_url: str, bucket_name: str = "my-telegram-bot"):
-    """Purge objects in bucket upon explicit user authorization."""
-    logger.warning(f"[S3] Explicitly emptying objects in bucket '{bucket_name}'...")
+async def empty_bucket(
+    session: aioboto3.Session,
+    endpoint_url: str,
+    user_id: int,
+    bucket_name: str = "my-telegram-bot"
+) -> bool:
+    """
+    Purge objects in bucket strictly limited to the user's isolated prefix: users/{user_id}/
+    Prevents affecting other users sharing the same bucket.
+    """
+    if not user_id:
+        logger.error("[S3] Refusing to purge objects without specific user_id")
+        return False
+
+    prefix = f"users/{user_id}/"
+    logger.warning(f"[S3] Purging user objects with prefix '{prefix}' in bucket '{bucket_name}'...")
     try:
         async with session.client("s3", endpoint_url=endpoint_url) as s3_client:
             paginator = s3_client.get_paginator('list_objects_v2')
-            async for page in paginator.paginate(Bucket=bucket_name):
+            async for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
                 if 'Contents' in page:
                     objects_to_delete = [{'Key': obj['Key']} for obj in page['Contents']]
                     if objects_to_delete:
@@ -34,10 +47,10 @@ async def empty_bucket(session: aioboto3.Session, endpoint_url: str, bucket_name
                             Bucket=bucket_name,
                             Delete={'Objects': objects_to_delete}
                         )
-        logger.info(f"[S3] Bucket '{bucket_name}' successfully emptied.")
+        logger.info(f"[S3] User '{user_id}' objects successfully purged.")
         return True
     except Exception as e:
-        logger.error(f"[S3] Failed to empty bucket: {e}")
+        logger.error(f"[S3] Failed to purge user objects: {e}")
         return False
 
 

@@ -132,17 +132,17 @@ async def confirm_s3_purge_callback(message: Message, user_id: int) -> None:
         return
 
     session = await s3_service.create_connection(access_key, secret_key)
-    success = await s3_service.empty_bucket(session, endpoint)
+    success = await s3_service.empty_bucket(session, endpoint, user_id=user_id)
     if success:
         await _send_or_edit(
             message,
-            "✅ باکت S3 با موفقیت پاکسازی شد و فضای ذخیره‌سازی آزاد گردید.\nاکنون می‌توانید فایل‌های جدید خود را ارسال فرمایید.",
+            "✅ فایل‌های شما در باکت S3 با موفقیت پاکسازی شد و فضای ذخیره‌سازی آزاد گردید.\nاکنون می‌توانید فایل‌های جدید خود را ارسال فرمایید.",
             reply_markup=build_back_keyboard()
         )
     else:
         await _send_or_edit(
             message,
-            "❌ خطا در پاکسازی باکت S3. لطفاً دسترسی‌ها و کلیدهای باکت خود را بررسی فرمایید.",
+            "❌ خطا در پاکسازی فایل‌های باکت S3. لطفاً دسترسی‌ها و کلیدهای باکت خود را بررسی فرمایید.",
             reply_markup=build_back_keyboard()
         )
 
