@@ -144,6 +144,7 @@ Paste configuration:
 [Unit]
 Description=Tel2Bale Telegram to Bale Bridge Bot Daemon
 After=network.target redis-server.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -155,9 +156,9 @@ Restart=always
 RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
+ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/opt/tel2bale/bot.db /opt/tel2bale/downloads /opt/tel2bale/backups /opt/tel2bale/cookies /opt/tel2bale/logs
+ReadWritePaths=/opt/tel2bale
 
 [Install]
 WantedBy=multi-user.target

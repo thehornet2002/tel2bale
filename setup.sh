@@ -288,8 +288,11 @@ if ! id -u "$BOT_USER" >/dev/null 2>&1; then
 fi
 
 # Ensure strict file ownership and permissions (make .env strictly read-only for bot user)
+mkdir -p "$APP_DIR/logs" "$APP_DIR/backups" "$APP_DIR/downloads" "$APP_DIR/cookies"
+touch "$APP_DIR/bot.db"
 chown -R "$BOT_USER:$BOT_USER" "$APP_DIR"
 chmod 700 "$APP_DIR/cookies" 2>/dev/null || true
+chmod 600 "$APP_DIR/bot.db" 2>/dev/null || true
 chmod 400 "$APP_DIR/.env" 2>/dev/null || true
 
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -298,6 +301,7 @@ cat <<EOF > "$SERVICE_FILE"
 [Unit]
 Description=Tel2Bale Telegram to Bale Bridge Bot Daemon
 After=network.target redis-server.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -307,12 +311,11 @@ WorkingDirectory=$APP_DIR
 ExecStart=$APP_DIR/.venv/bin/python $APP_DIR/main.py
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=0
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
+ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=$APP_DIR/bot.db $APP_DIR/downloads $APP_DIR/backups $APP_DIR/cookies $APP_DIR/logs
+ReadWritePaths=$APP_DIR
 StandardOutput=journal
 StandardError=journal
 
