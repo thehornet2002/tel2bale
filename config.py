@@ -73,6 +73,9 @@ def _normalize_proxy_url(value: str | None, default_scheme: str = "http") -> str
 # Redis Configuration
 REDIS_URL = os.getenv("REDIS_URL", "").strip().strip('\'"') or None
 
+# Encryption Key for sensitive user credentials
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "").strip().strip('\'"') or None
+
 
 # Telegram Proxy Configuration
 _tel_proxy_scheme = _clean_env(os.getenv("TEL_PROXY_SCHEME"))

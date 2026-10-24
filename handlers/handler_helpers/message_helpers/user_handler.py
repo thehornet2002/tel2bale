@@ -72,14 +72,27 @@ async def send_support_message(message: Message, user_id: int):
     full_name = f"{(user.first_name or '')} {(user.last_name or '')}".strip() or "کاربر"
     msg_content = message.text or message.caption or "(فایل/مدیا)"
 
-    ticket_id = await model_async.create_user_ticket(
-        telegram_id=user_id,
-        user_name=full_name,
-        category_id=cat_id,
-        message=msg_content,
-        subject=cat_title,
-        is_anonymous=is_anon
-    )
+    try:
+        ticket_id = await model_async.create_user_ticket(
+            telegram_id=user_id,
+            user_name=full_name,
+            category_id=cat_id,
+            message=msg_content,
+            subject=cat_title,
+            is_anonymous=is_anon
+        )
+        if not ticket_id:
+            raise RuntimeError("Database did not return a valid ticket ID.")
+    except Exception as e:
+        logger.error(f"[TICKET] Failed to create user ticket: {e}")
+        if limit:
+            await model_async.decrement_support_message_count(user_id)
+        await model_async.set_state(user_id, 'home')
+        await message.reply_text(
+            "❌ خطا در ثبت تیکت. لطفاً مجدداً تلاش فرمایید.",
+            reply_markup=build_back_keyboard()
+        )
+        return
 
     await model_async.set_state(user_id, 'home')
     await message.reply_text(

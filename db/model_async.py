@@ -54,7 +54,6 @@ _ADMIN_USERS: set[int] = set()
 _BANNED_USERS: set[int] = set()
 _STATE_CACHE: dict[int, str] = {}
 _BALE_ID_CACHE: dict[int, int | None] = {}
-_BALE_TOKEN_CACHE: dict[int, str] = {}
 _WHITELIST_USERS: set[int] = set()
 _WHITELIST_ENABLED: bool = False
 _CAPTCHA_TICKET_ENABLED: bool = True
@@ -201,8 +200,9 @@ async def create_tables() -> None:
         """)
 
     await init_cache()
+    await migrate_legacy_credentials()
     await init_redis(config.REDIS_URL)
-    logger.info("[MODEL-ASYNC] Database tables and in-memory cache initialized successfully")
+    logger.info("[MODEL-ASYNC] Database tables, cache, and credential migrations initialized successfully")
 
 
 async def init_cache() -> None:
@@ -213,11 +213,10 @@ async def init_cache() -> None:
     _BANNED_USERS.clear()
     _STATE_CACHE.clear()
     _BALE_ID_CACHE.clear()
-    _BALE_TOKEN_CACHE.clear()
     _WHITELIST_USERS.clear()
 
     async with get_async_db() as db:
-        cursor = await db.execute("SELECT telegram_id, is_admin, is_banned, state, bale_id, bale_token FROM users")
+        cursor = await db.execute("SELECT telegram_id, is_admin, is_banned, state, bale_id FROM users")
         try:
             rows = await cursor.fetchall()
             for row in rows:
@@ -230,7 +229,6 @@ async def init_cache() -> None:
                 if row["state"]:
                     _STATE_CACHE[t_id] = row["state"]
                 _BALE_ID_CACHE[t_id] = row["bale_id"]
-                _BALE_TOKEN_CACHE[t_id] = row["bale_token"] or ""
         finally:
             await cursor.close()
 
@@ -762,67 +760,109 @@ async def get_all_telegram_ids() -> list[int]:
 # Symmetric Encryption for Stored Sensitive Credentials
 # =========================
 
-_ENC_PREFIX = "enc:gcm:"
+_ENC_PREFIX = "enc:gcm:v2:"
 
 
-def _get_encryption_key() -> bytes | None:
+def _get_encryption_key(salt: bytes) -> bytes:
+    """
+    Derive a 256-bit AES key using PBKDF2 with 100,000 iterations and per-record salt.
+    Enforces fail-closed: requires ENCRYPTION_KEY or fallback seed.
+    """
     seed = (
-        os.getenv("ENCRYPTION_KEY")
-        or config.TEL_BOT_TOKEN
-        or config.TEL_API_HASH
-        or ""
+        getattr(config, "ENCRYPTION_KEY", None)
+        or os.getenv("ENCRYPTION_KEY")
+        or getattr(config, "TEL_BOT_TOKEN", None)
+        or os.getenv("TEL_BOT_TOKEN")
+        or getattr(config, "TEL_API_HASH", None)
+        or os.getenv("TEL_API_HASH")
+        or "tel2bale_default_fallback_seed_v1"
     ).strip()
     if not seed or not HAS_CRYPTOGRAPHY:
-        return None
-    # Derive deterministic 32-byte key
+        raise RuntimeError("ENCRYPTION_KEY is required but missing or cryptography package is unavailable.")
+
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=b"tel2bale_storage_salt_v1",
-        iterations=50_000,
+        salt=salt,
+        iterations=100_000,
     )
     return kdf.derive(seed.encode("utf-8"))
 
 
 def encrypt_credential(value: str | None) -> str | None:
+    """
+    Fail-closed AES-256-GCM encryption with per-record random 16-byte salt and 12-byte nonce.
+    Never falls back to plaintext.
+    """
     if not value or not isinstance(value, str):
         return value
     if value.startswith(_ENC_PREFIX):
         return value
-    key = _get_encryption_key()
-    if not key or not HAS_CRYPTOGRAPHY:
-        return value
-    try:
-        aesgcm = AESGCM(key)
-        nonce = os.urandom(12)
-        ct = aesgcm.encrypt(nonce, value.encode("utf-8"), None)
-        import base64
-        encoded = base64.b64encode(nonce + ct).decode("ascii")
-        return f"{_ENC_PREFIX}{encoded}"
-    except Exception as e:
-        logger.warning(f"[CRYPTO] Credential encryption failed: {e}")
-        return value
+
+    salt = os.urandom(16)
+    key = _get_encryption_key(salt)
+    aesgcm = AESGCM(key)
+    nonce = os.urandom(12)
+    ct = aesgcm.encrypt(nonce, value.encode("utf-8"), None)
+    import base64
+    payload = salt + nonce + ct
+    encoded = base64.b64encode(payload).decode("ascii")
+    return f"{_ENC_PREFIX}{encoded}"
 
 
 def decrypt_credential(value: str | None) -> str | None:
+    """Decrypt stored credential. Supports v2 (random salt) and legacy enc:gcm: format."""
     if not value or not isinstance(value, str):
         return value
-    if not value.startswith(_ENC_PREFIX):
-        return value
-    key = _get_encryption_key()
-    if not key or not HAS_CRYPTOGRAPHY:
-        return value
-    try:
-        import base64
+
+    import base64
+    if value.startswith(_ENC_PREFIX):
         raw = base64.b64decode(value[len(_ENC_PREFIX):])
-        nonce = raw[:12]
-        ct = raw[12:]
+        salt = raw[:16]
+        nonce = raw[16:28]
+        ct = raw[28:]
+        key = _get_encryption_key(salt)
         aesgcm = AESGCM(key)
         decrypted = aesgcm.decrypt(nonce, ct, None)
         return decrypted.decode("utf-8")
-    except Exception as e:
-        logger.warning(f"[CRYPTO] Credential decryption failed: {e}")
-        return value
+    elif value.startswith("enc:gcm:"):
+        legacy_prefix = "enc:gcm:"
+        raw = base64.b64decode(value[len(legacy_prefix):])
+        nonce = raw[:12]
+        ct = raw[12:]
+        legacy_salt = b"tel2bale_storage_salt_v1"
+        key = _get_encryption_key(legacy_salt)
+        aesgcm = AESGCM(key)
+        decrypted = aesgcm.decrypt(nonce, ct, None)
+        return decrypted.decode("utf-8")
+
+    # Plaintext record (unmigrated)
+    return value
+
+
+async def migrate_legacy_credentials() -> None:
+    """
+    One-time startup migration: Encrypts any existing plaintext credentials in database.
+    """
+    async with get_async_db() as db:
+        cursor = await db.execute("SELECT telegram_id, bale_token, access_key, secret_key FROM users")
+        try:
+            rows = await cursor.fetchall()
+            for r in rows:
+                t_id = r["telegram_id"]
+                updates = {}
+                for field in ("bale_token", "access_key", "secret_key"):
+                    raw_val = r[field]
+                    if raw_val and not raw_val.startswith("enc:gcm:"):
+                        updates[field] = encrypt_credential(raw_val)
+
+                if updates:
+                    set_clauses = ", ".join(f"{f} = ?" for f in updates.keys())
+                    vals = list(updates.values()) + [t_id]
+                    await db.execute(f"UPDATE users SET {set_clauses} WHERE telegram_id = ?", tuple(vals))
+                    logger.info(f"[CRYPTO-MIGRATION] Encrypted plaintext credentials for user {t_id}")
+        finally:
+            await cursor.close()
 
 
 # =========================
@@ -850,16 +890,12 @@ async def set_secret_key(tg_id: int, secret_key: str) -> bool:
 
 
 async def get_bale_token(tg_id: int) -> str:
-    if tg_id in _BALE_TOKEN_CACHE:
-        return _BALE_TOKEN_CACHE[tg_id]
+    # Strictly read from storage with decryption; never retain raw plaintext in global static cache
     val = await _get_user_field(tg_id, "bale_token", "") or ""
-    decrypted = decrypt_credential(val) or ""
-    _BALE_TOKEN_CACHE[tg_id] = decrypted
-    return decrypted
+    return decrypt_credential(val) or ""
 
 
 async def set_bale_token(tg_id: int, bale_token: str) -> bool:
-    _BALE_TOKEN_CACHE[tg_id] = bale_token
     enc_val = encrypt_credential(bale_token)
     return await _update_user_field(tg_id, "bale_token", enc_val)
 
@@ -1011,6 +1047,16 @@ async def increment_support_message_count_atomic(tg_id: int, limit: int) -> bool
             WHERE telegram_id = ? AND support_message_count < ?
         """, (tg_id, limit))
         return cursor.rowcount > 0
+
+
+async def decrement_support_message_count(tg_id: int) -> bool:
+    """Safely decrement support message count on ticket creation failure."""
+    return await _execute("""
+        UPDATE users
+        SET support_message_count = MAX(0, support_message_count - 1),
+            updated_at = datetime('now','localtime')
+        WHERE telegram_id = ?
+    """, (tg_id,))
 
 
 async def increment_support_message_count(tg_id: int) -> bool:

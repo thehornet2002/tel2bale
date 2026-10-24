@@ -30,8 +30,8 @@ async def empty_bucket(
     Purge objects in bucket strictly limited to the user's isolated prefix: users/{user_id}/
     Prevents affecting other users sharing the same bucket.
     """
-    if not user_id:
-        logger.error("[S3] Refusing to purge objects without specific user_id")
+    if user_id is None or user_id <= 0:
+        logger.error(f"[S3] Refusing to purge objects with invalid user_id: {user_id}")
         return False
 
     prefix = f"users/{user_id}/"

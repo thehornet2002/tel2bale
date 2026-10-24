@@ -13,6 +13,7 @@ from config import (
 from db.model_async import create_tables, add_user, set_admin
 from db.redis_client import close_redis
 from services.bale_service import bale_bot
+from services.downloader_service import cleanup_stale_downloads
 from utils.logger import setup_logger
 
 plugins = dict(root="handlers")
@@ -37,6 +38,7 @@ async def setup_bot_commands():
 
 async def main():
     setup_logger()
+    cleanup_stale_downloads(max_age_seconds=3600)
     await create_tables()
     for admin_id in ADMIN_IDS:
         await add_user(admin_id, is_admin=True)

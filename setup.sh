@@ -167,6 +167,7 @@ if [ -f ".env" ]; then
     EX_FILE_SIZE=$(grep '^TEL_MAX_FILE_SIZE=' .env 2>/dev/null | head -n1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "20")
     EX_DONATION=$(grep '^DONATION_LINK=' .env 2>/dev/null | head -n1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "https://daramet.com/Hornet2002")
     EX_REDIS=$(grep '^REDIS_URL=' .env 2>/dev/null | head -n1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "$DEFAULT_REDIS_URL")
+    EX_ENC_KEY=$(grep '^ENCRYPTION_KEY=' .env 2>/dev/null | head -n1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
 
     echo -e "${CYAN}Existing .env configuration detected.${NC}"
     read -p "Do you want to reconfigure it? (y/N): " RECONFIG
@@ -229,6 +230,13 @@ if [[ "$RECONFIG" =~ ^[Yy]$ ]]; then
     read -p "Enter REDIS_URL [Default: ${EX_REDIS:-$DEFAULT_REDIS_URL}]: " INPUT_REDIS_URL
     INPUT_REDIS_URL=${INPUT_REDIS_URL:-${EX_REDIS:-$DEFAULT_REDIS_URL}}
 
+    # Generate or retain a cryptographically strong 32-byte ENCRYPTION_KEY
+    if [ -n "$EX_ENC_KEY" ]; then
+        INPUT_ENC_KEY="$EX_ENC_KEY"
+    else
+        INPUT_ENC_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))' 2>/dev/null || openssl rand -base64 32 | tr -d '=\n')
+    fi
+
     cat <<EOF > .env
 TEL_API_ID=$INPUT_API_ID
 TEL_API_HASH=$INPUT_API_HASH
@@ -249,6 +257,7 @@ MAX_USERS=0
 MAX_ACTIVE_USERS=0
 
 REDIS_URL=$INPUT_REDIS_URL
+ENCRYPTION_KEY=$INPUT_ENC_KEY
 
 # Optional Proxies
 # TEL_PROXY_SCHEME=socks5

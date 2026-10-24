@@ -7,6 +7,7 @@ import asyncio
 import os
 import re
 import shutil
+import time
 import uuid
 import aiohttp
 import yt_dlp
@@ -51,15 +52,37 @@ def ensure_downloads_dir() -> None:
 
 
 def check_disk_space(required_mb: int = 500) -> bool:
-    """Check if server has at least required_mb free disk space."""
+    """
+    Check if server has at least required_mb free disk space.
+    Strictly fail-closed: returns False on any filesystem or inspection failure.
+    """
     try:
         ensure_downloads_dir()
         stat = shutil.disk_usage(DOWNLOADS_DIR)
         free_mb = stat.free / (1024 * 1024)
         return free_mb >= required_mb
     except Exception as e:
-        logger.warning(f"[DOWNLOADER] Could not check disk space: {e}")
-        return True
+        logger.error(f"[DOWNLOADER] Could not check disk space: {e}")
+        return False
+
+
+def cleanup_stale_downloads(max_age_seconds: int = 3600) -> int:
+    """Purge temporary files older than max_age_seconds in downloads directory."""
+    cleaned = 0
+    now = time.time()
+    try:
+        if os.path.exists(DOWNLOADS_DIR):
+            for fname in os.listdir(DOWNLOADS_DIR):
+                fpath = os.path.join(DOWNLOADS_DIR, fname)
+                try:
+                    if os.path.isfile(fpath) and (now - os.path.getmtime(fpath) > max_age_seconds):
+                        os.remove(fpath)
+                        cleaned += 1
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"[DOWNLOADER] Stale downloads cleanup warning: {e}")
+    return cleaned
 
 
 def is_media_url(text: str) -> bool:
@@ -341,6 +364,10 @@ def _sync_download(
     return downloaded_file, title, file_size
 
 
+# Timeout for end-to-end media download (10 minutes)
+DOWNLOAD_TIMEOUT_SECONDS = 600
+
+
 async def download_media(
     url: str,
     quality: str,
@@ -349,7 +376,7 @@ async def download_media(
     spotify_query: str | None = None,
 ) -> tuple[str, str, int]:
     """
-    Download media asynchronously with concurrency control and disk space checks.
+    Download media asynchronously with concurrency control, disk space checks, and hard 600s timeout.
     """
     if not check_disk_space(required_mb=300):
         raise RuntimeError("فضای دیسک سرور برای دانلود رسانه جدید ناکافی است.")
@@ -370,15 +397,28 @@ async def download_media(
     unique_id = uuid.uuid4().hex[:12]
     try:
         async with _GLOBAL_DOWNLOAD_SEMAPHORE:
-            return await asyncio.to_thread(
-                _sync_download,
-                url=url,
-                quality=quality,
-                user_id=user_id,
-                out_id=unique_id,
-                is_spotify=is_spotify,
-                spotify_query=spotify_query,
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    _sync_download,
+                    url=url,
+                    quality=quality,
+                    user_id=user_id,
+                    out_id=unique_id,
+                    is_spotify=is_spotify,
+                    spotify_query=spotify_query,
+                ),
+                timeout=DOWNLOAD_TIMEOUT_SECONDS,
             )
+    except asyncio.TimeoutError:
+        logger.error(f"[DOWNLOADER] Media download timed out after {DOWNLOAD_TIMEOUT_SECONDS}s for {url}")
+        # Clean up any partial files with unique_id
+        for fname in os.listdir(DOWNLOADS_DIR):
+            if fname.startswith(unique_id):
+                try:
+                    os.remove(os.path.join(DOWNLOADS_DIR, fname))
+                except Exception:
+                    pass
+        raise RuntimeError(f"مدت زمان دانلود از سقف زمانی مجاز ({DOWNLOAD_TIMEOUT_SECONDS // 60} دقیقه) فراتر رفت.")
     finally:
         if user_id:
             async with _USER_LOCK:

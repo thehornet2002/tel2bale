@@ -33,9 +33,9 @@ It is particularly valuable in environments where direct access to Telegram is r
   - **YouTube**: Download videos and shorts with selectable resolutions (1080p, 720p, 480p, 360p) or extract audio (MP3).
   - **Instagram**: Seamless download of Reels, Posts, and IGTV.
   - **Spotify**: Fast track metadata extraction and high-quality MP3 audio download.
-  - **1000+ Platforms**: Support for TikTok, Twitter/X, SoundCloud, Pinterest, and generic video links via `yt-dlp`.
+  - **Strict Domain Protection**: Strict allowlist limiting connections to authorized official domains with anti-SSRF protections.
 - **Global Cookie Management**:
-  - Admin `cookies.txt` support for overcoming age-restrictions and bot-detection challenges.
+  - Admin `cookies.txt` support with 0600 file permissions for overcoming age-restrictions and bot-detection challenges.
 - **Enhanced Quota & Bandwidth Management**:
   - Atomic per-user download volume accounting across direct files and streaming downloads.
   - User self-service quota inspection (`📊 سهمیه مصرفی من`).
@@ -50,9 +50,11 @@ It is particularly valuable in environments where direct access to Telegram is r
 - **Multi-Poll & Survey System**:
   - Create and manage multiple active polls with custom questions and choices.
   - One-vote-per-user enforcement with live percentage and visual bar charts.
-- **Security Captcha & Cloudflare Turnstile**:
-  - Admin toggleable image captchas for Tickets, Polls, and File forwarding.
-  - Cloudflare Turnstile support with custom domain setup.
+- **5-Level Security Image Captcha Challenge**:
+  - Dynamic mathematical/visual captcha with 5 difficulty levels (Very Easy to Very Hard).
+  - Customizable character length (4 to 10 characters).
+  - 20-minute temporary lockout upon 5 consecutive failed or expired challenges.
+  - Interactive InlineKeyboardMarkup admin control panel.
 - **Admin Control Panel**:
   - Native Reply Keyboard buttons with Telegram user/chat pickers.
   - Whitelist mode toggle, ban/unban by Telegram ID or Bale ID.
