@@ -190,6 +190,7 @@ async def handle_input(client: Client, message: Message) -> None:
         return
 
     if await check_ban(user_id):
+        await message.reply_text("⛔ حساب کاربری شما مسدود است.")
         return
 
     text = (message.text or "").strip()
@@ -308,6 +309,35 @@ async def handle_input(client: Client, message: Message) -> None:
                     await prompt_media_quality_selection(message, user_id, data["url"])
                 else:
                     await message.reply_text("✅ کد امنیتی تایید شد. لطفاً مجدداً لینک مورد نظر را ارسال فرمایید.")
+            elif tag == "config_bale_id":
+                from handlers.handler_helpers.message_helpers.common import _PENDING_CONFIG
+                item = _PENDING_CONFIG.pop(user_id, None)
+                await set_state(user_id, "home")
+                if item and item.get("value"):
+                    await model_async.set_bale_id(user_id, item["value"])
+                    await message.reply_text("✅ کد امنیتی تایید شد. ID عددی شما در بله با موفقیت ثبت شد.", reply_markup=build_back_keyboard())
+                else:
+                    await message.reply_text("✅ کد امنیتی تایید شد. لطفاً مجدداً ID عددی بله را وارد کنید.", reply_markup=build_back_keyboard())
+            elif tag == "config_bale_token":
+                from handlers.handler_helpers.message_helpers.common import _PENDING_CONFIG
+                item = _PENDING_CONFIG.pop(user_id, None)
+                await set_state(user_id, "home")
+                if item and item.get("value"):
+                    await model_async.set_bale_token(user_id, item["value"])
+                    await message.reply_text("✅ کد امنیتی تایید شد. توکن ربات بله با موفقیت ثبت شد.", reply_markup=build_back_keyboard())
+                else:
+                    await message.reply_text("✅ کد امنیتی تایید شد. لطفاً مجدداً توکن ربات بله را وارد کنید.", reply_markup=build_back_keyboard())
+            elif tag == "config_s3":
+                from handlers.handler_helpers.message_helpers.common import _PENDING_CONFIG
+                item = _PENDING_CONFIG.pop(user_id, None)
+                await set_state(user_id, "home")
+                if item and item.get("access_key") and item.get("secret_key") and item.get("endpoint"):
+                    await model_async.set_access_key(user_id, item["access_key"])
+                    await model_async.set_secret_key(user_id, item["secret_key"])
+                    await model_async.set_s3_endpoint(user_id, item["endpoint"])
+                    await message.reply_text("✅ کد امنیتی تایید شد. اطلاعات فضای ابری S3 شما با موفقیت ذخیره شد.", reply_markup=build_back_keyboard())
+                else:
+                    await message.reply_text("✅ کد امنیتی تایید شد. لطفاً مجدداً از منوی تنظیم S3 اقدام فرمایید.", reply_markup=build_back_keyboard())
             elif tag == "file_forward":
                 pending_file = get_pending_file_message(user_id)
                 clear_pending_file_message(user_id)

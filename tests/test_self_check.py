@@ -458,6 +458,13 @@ async def test_prerequisites_and_captcha():
     reset_captcha_failures(test_user)
     assert check_user_captcha_lock(test_user)[0] is False
 
+    # Config captcha toggle test
+    assert model_async.is_captcha_config_enabled() is False
+    await model_async.set_captcha_config_enabled(True)
+    assert model_async.is_captcha_config_enabled() is True
+    await model_async.set_captcha_config_enabled(False)
+    assert model_async.is_captcha_config_enabled() is False
+
     # Test admin_captcha_settings_view does not raise NameError
     admin_uid = 999999999
     admin_msg = DummyMessage("test")

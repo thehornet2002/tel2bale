@@ -339,6 +339,9 @@ async def enter_ticket_reply_handler(message: Message, user_id: int):
     )
 
 
+_PENDING_CATEGORY_TITLE: dict[int, str] = {}
+
+
 @admin_only
 async def enter_category_title_handler(message: Message, user_id: int):
     title = (message.text or "").strip()
@@ -346,7 +349,7 @@ async def enter_category_title_handler(message: Message, user_id: int):
         await message.reply_text("❌ طول عنوان باید بین ۱ تا ۶۰ کاراکتر باشد.")
         return
 
-    from db.redis_client import redis_set_state
+    _PENDING_CATEGORY_TITLE[user_id] = title
     await model_async.set_state(user_id, f"choosing_category_anon_{title}")
     from utils.keyboards import build_category_anonymity_keyboard
     await message.reply_text(

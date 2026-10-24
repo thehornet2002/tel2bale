@@ -201,6 +201,7 @@ async def admin_captcha_settings_view(message: Message, user_id: int) -> None:
     poll_on = model_async.is_captcha_poll_enabled()
     file_on = model_async.is_captcha_file_enabled()
     download_on = model_async.is_captcha_download_enabled()
+    config_on = model_async.is_captcha_config_enabled()
     difficulty = model_async.get_captcha_difficulty()
     length = model_async.get_captcha_length()
 
@@ -212,7 +213,8 @@ async def admin_captcha_settings_view(message: Message, user_id: int) -> None:
         f"• **کپچای تیکت**: {'🟢 فعال' if ticket_on else '🔴 غیرفعال'}\n"
         f"• **کپچای نظرسنجی**: {'🟢 فعال' if poll_on else '🔴 غیرفعال'}\n"
         f"• **کپچای ارسال فایل**: {'🟢 فعال' if file_on else '🔴 غیرفعال'}\n"
-        f"• **کپچای دانلود رسانه**: {'🟢 فعال' if download_on else '🔴 غیرفعال'}\n\n"
+        f"• **کپچای دانلود رسانه**: {'🟢 فعال' if download_on else '🔴 غیرفعال'}\n"
+        f"• **کپچای تنظیمات (بله و S3)**: {'🟢 فعال' if config_on else '🔴 غیرفعال'}\n\n"
         f"🎚 **سطح سختی تصویر**: **سطح {difficulty} ({diff_labels.get(difficulty, 'متوسط')})**\n"
         f"🔢 **طول کاراکترها**: **{length} رقم/حرف**\n"
         "⛔️ **قانون جریمه**: در صورت ۵ پاسخ اشتباه یا انقضای کد، کاربر ۲۰ دقیقه مسدود می‌شود.\n\n"
@@ -223,6 +225,7 @@ async def admin_captcha_settings_view(message: Message, user_id: int) -> None:
         poll_on=poll_on,
         file_on=file_on,
         download_on=download_on,
+        config_on=config_on,
         difficulty=difficulty,
         length=length,
     )
@@ -261,6 +264,13 @@ async def admin_toggle_captcha_file(message: Message, user_id: int) -> None:
 async def admin_toggle_captcha_download(message: Message, user_id: int) -> None:
     current = model_async.is_captcha_download_enabled()
     await model_async.set_captcha_download_enabled(not current)
+    await admin_captcha_settings_view(message, user_id)
+
+
+@admin_required
+async def admin_toggle_captcha_config(message: Message, user_id: int) -> None:
+    current = model_async.is_captcha_config_enabled()
+    await model_async.set_captcha_config_enabled(not current)
     await admin_captcha_settings_view(message, user_id)
 
 

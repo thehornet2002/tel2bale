@@ -11,6 +11,14 @@ async def enter_bale_id(message: Message, user_id: int):
     if not id_num:
         return
 
+    from handlers.handler_helpers.message_helpers.common import _PENDING_CONFIG
+    is_admin = await model_async.check_admin(user_id)
+    if not is_admin and model_async.is_captcha_config_enabled():
+        _PENDING_CONFIG[user_id] = {"type": "bale_id", "value": id_num}
+        from handlers.handler_helpers.message_helpers.captcha_handler import issue_captcha
+        await issue_captcha(message, user_id, "config_bale_id")
+        return
+
     await model_async.set_bale_id(tg_id=user_id, bale_id=id_num)
     await model_async.set_state(user_id, 'home')
     await message.reply_text('ID عددی شما در بله با موفقیت ثبت شد.', reply_markup=build_back_keyboard())
@@ -27,16 +35,25 @@ async def set_bale_token_bot(message: Message, user_id: int):
         return
 
     verify_state = await bale_bot.verify_token(token)
-    if verify_state:
-        await model_async.set_bale_token(user_id, token)
-        await model_async.set_state(user_id, 'home')
-        await message.reply_text('توکن ربات بله با موفقیت ثبت شد.', reply_markup=build_back_keyboard())
-    else:
+    if not verify_state:
         await model_async.set_state(user_id, 'home')
         await message.reply_text(
             'توکن بات بله معتبر نمی باشد لطفا دوباره تلاش کنید.',
             reply_markup=build_back_keyboard()
         )
+        return
+
+    from handlers.handler_helpers.message_helpers.common import _PENDING_CONFIG
+    is_admin = await model_async.check_admin(user_id)
+    if not is_admin and model_async.is_captcha_config_enabled():
+        _PENDING_CONFIG[user_id] = {"type": "bale_token", "value": token}
+        from handlers.handler_helpers.message_helpers.captcha_handler import issue_captcha
+        await issue_captcha(message, user_id, "config_bale_token")
+        return
+
+    await model_async.set_bale_token(user_id, token)
+    await model_async.set_state(user_id, 'home')
+    await message.reply_text('توکن ربات بله با موفقیت ثبت شد.', reply_markup=build_back_keyboard())
 
 
 async def send_support_message(message: Message, user_id: int):

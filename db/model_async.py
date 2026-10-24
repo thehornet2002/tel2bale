@@ -60,6 +60,7 @@ _CAPTCHA_TICKET_ENABLED: bool = True
 _CAPTCHA_POLL_ENABLED: bool = False
 _CAPTCHA_FILE_ENABLED: bool = False
 _CAPTCHA_DOWNLOAD_ENABLED: bool = False
+_CAPTCHA_CONFIG_ENABLED: bool = False
 _CAPTCHA_DIFFICULTY: int = 3
 _CAPTCHA_LENGTH: int = 5
 
@@ -301,7 +302,7 @@ async def init_cache() -> None:
         for admin_id in admin_ids:
             _WHITELIST_USERS.add(admin_id)
 
-    global _CAPTCHA_TICKET_ENABLED, _CAPTCHA_POLL_ENABLED, _CAPTCHA_FILE_ENABLED, _CAPTCHA_DOWNLOAD_ENABLED, _CAPTCHA_DIFFICULTY, _CAPTCHA_LENGTH
+    global _CAPTCHA_TICKET_ENABLED, _CAPTCHA_POLL_ENABLED, _CAPTCHA_FILE_ENABLED, _CAPTCHA_DOWNLOAD_ENABLED, _CAPTCHA_CONFIG_ENABLED, _CAPTCHA_DIFFICULTY, _CAPTCHA_LENGTH
     saved_ct = await get_setting("captcha_ticket_enabled", "true")
     _CAPTCHA_TICKET_ENABLED = (saved_ct.lower() == "true")
     saved_cp = await get_setting("captcha_poll_enabled", "false")
@@ -310,6 +311,8 @@ async def init_cache() -> None:
     _CAPTCHA_FILE_ENABLED = (saved_cf.lower() == "true")
     saved_cd = await get_setting("captcha_download_enabled", "false")
     _CAPTCHA_DOWNLOAD_ENABLED = (saved_cd.lower() == "true")
+    saved_cc = await get_setting("captcha_config_enabled", "false")
+    _CAPTCHA_CONFIG_ENABLED = (saved_cc.lower() == "true")
 
     saved_diff = await get_setting("captcha_difficulty", "3")
     try:
@@ -1112,11 +1115,13 @@ async def get_ticket_category(category_id: int) -> dict | None:
 
 
 async def add_ticket_category(title: str, is_anonymous: int = 0) -> bool:
+    clean_title = title.strip()
     async with get_async_db() as db:
         await db.execute("""
-            INSERT OR IGNORE INTO ticket_categories (title, is_active, is_anonymous)
+            INSERT INTO ticket_categories (title, is_active, is_anonymous)
             VALUES (?, 1, ?)
-        """, (title.strip(), is_anonymous))
+            ON CONFLICT(title) DO UPDATE SET is_active = 1, is_anonymous = excluded.is_anonymous
+        """, (clean_title, is_anonymous))
     return True
 
 
@@ -1618,6 +1623,17 @@ async def set_captcha_download_enabled(enabled: bool) -> bool:
     global _CAPTCHA_DOWNLOAD_ENABLED
     _CAPTCHA_DOWNLOAD_ENABLED = enabled
     await set_setting("captcha_download_enabled", str(enabled).lower())
+    return True
+
+
+def is_captcha_config_enabled() -> bool:
+    return _CAPTCHA_CONFIG_ENABLED
+
+
+async def set_captcha_config_enabled(enabled: bool) -> bool:
+    global _CAPTCHA_CONFIG_ENABLED
+    _CAPTCHA_CONFIG_ENABLED = enabled
+    await set_setting("captcha_config_enabled", str(enabled).lower())
     return True
 
 

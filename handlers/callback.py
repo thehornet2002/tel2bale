@@ -39,6 +39,7 @@ from handlers.handler_helpers.callback_helpers.admin.ticket_mgmt_handler import 
     admin_start_add_category,
     admin_start_poll_creation,
     admin_tickets_menu,
+    admin_toggle_captcha_config,
     admin_toggle_captcha_download,
     admin_toggle_captcha_file,
     admin_toggle_captcha_poll,
@@ -153,6 +154,7 @@ CALLBACK_ROUTES = {
     "adm_toggle_captcha_poll": admin_toggle_captcha_poll,
     "adm_toggle_captcha_file": admin_toggle_captcha_file,
     "adm_toggle_captcha_download": admin_toggle_captcha_download,
+    "adm_toggle_captcha_config": admin_toggle_captcha_config,
     # media & cookies
     "user_download_media_prompt": user_download_media_prompt,
     "user_quota_info": user_quota_info_callback,
@@ -197,6 +199,7 @@ ADMIN_CALLBACK_NAMES = {
     "adm_toggle_captcha_poll",
     "adm_toggle_captcha_file",
     "adm_toggle_captcha_download",
+    "adm_toggle_captcha_config",
     "adm_manage_cookies",
     "adm_upload_cookie",
     "adm_delete_cookie",
@@ -213,7 +216,7 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
         return
 
     if await check_ban(user_id):
-        await callback.answer()
+        await callback.answer("⛔ حساب کاربری شما مسدود شده است و امکان استفاده از ربات را ندارید.", show_alert=True)
         return
 
     # Strict access control: block non-admin execution of management callbacks
@@ -232,8 +235,11 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
             cat_id = int(callback.data.split("_")[-1])
             from db import model_async
             if model_async.is_captcha_ticket_enabled():
-                await callback.message.delete()
                 await issue_captcha(callback.message, user_id, f"ticket_{cat_id}")
+                try:
+                    await callback.message.delete()
+                except Exception:
+                    pass
             else:
                 await model_async.set_state(user_id, f"ticket_waiting_msg_{cat_id}")
                 from utils.keyboards import build_back_keyboard
@@ -244,8 +250,10 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
                 )
             await callback.answer()
             return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[CALLBACK] Error in ticket_cat_: {e}")
+            await callback.answer("خطا در انتخاب موضوع تیکت.", show_alert=True)
+            return
 
     if callback.data.startswith("user_select_poll_"):
         try:
@@ -270,8 +278,11 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
             _, poll_id_s, opt_idx_s = callback.data.split(":")
             from db import model_async
             if model_async.is_captcha_poll_enabled():
-                await callback.message.delete()
                 await issue_captcha(callback.message, user_id, f"poll_{poll_id_s}_{opt_idx_s}")
+                try:
+                    await callback.message.delete()
+                except Exception:
+                    pass
             else:
                 await user_vote_poll_action(callback.message, user_id, int(poll_id_s), int(opt_idx_s))
                 await callback.answer("رأی شما با موفقیت ثبت شد.")
@@ -355,17 +366,30 @@ async def callback_handler(client: Client, callback: CallbackQuery) -> None:
         try:
             anon_val = int(callback.data.split("_")[-1])
             state = await model_async.get_state(user_id)
+            title = ""
             if state.startswith("choosing_category_anon_"):
-                title = state.replace("choosing_category_anon_", "")
+                title = state[len("choosing_category_anon_"):].strip()
+            if not title:
+                from handlers.handler_helpers.message_helpers.admin_handler import _PENDING_CATEGORY_TITLE
+                title = _PENDING_CATEGORY_TITLE.pop(user_id, "")
+
+            if title:
                 await model_async.add_ticket_category(title, is_anonymous=anon_val)
                 await model_async.set_state(user_id, "management")
                 anon_desc = "🕶 ناشناس" if anon_val else "👤 عادی"
-                await callback.message.edit_text(f"✅ موضوع «{title}» با حالت {anon_desc} با موفقیت افزوده شد.")
+                try:
+                    await callback.message.edit_text(f"✅ موضوع «{title}» با حالت {anon_desc} با موفقیت افزوده شد.")
+                except Exception:
+                    pass
                 await admin_manage_categories(callback.message, user_id)
+            else:
+                await callback.answer("عنوان موضوع یافت نشد یا منقضی شده است. لطفاً مجدداً تلاش فرمایید.", show_alert=True)
             await callback.answer()
             return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[CALLBACK] Error in adm_cat_anon_: {e}")
+            await callback.answer("خطا در ایجاد موضوع تیکت.", show_alert=True)
+            return
 
     if callback.data.startswith("adm_poll_detail_"):
         try:

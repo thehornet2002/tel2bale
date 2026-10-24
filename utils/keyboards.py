@@ -370,6 +370,7 @@ def build_captcha_settings_keyboard(
     poll_on: bool,
     file_on: bool,
     download_on: bool,
+    config_on: bool = False,
     difficulty: int = 3,
     length: int = 5,
 ) -> InlineKeyboardMarkup:
@@ -400,6 +401,9 @@ def build_captcha_settings_keyboard(
         [
             InlineKeyboardButton(text=f"📁 ارسال فایل: {'🟢 فعال' if file_on else '🔴 غیرفعال'}", callback_data="adm_toggle_captcha_file"),
             InlineKeyboardButton(text=f"📥 دانلود رسانه: {'🟢 فعال' if download_on else '🔴 غیرفعال'}", callback_data="adm_toggle_captcha_download"),
+        ],
+        [
+            InlineKeyboardButton(text=f"⚙️ تنظیمات (بله و S3): {'🟢 فعال' if config_on else '🔴 غیرفعال'}", callback_data="adm_toggle_captcha_config"),
         ],
         [
             InlineKeyboardButton(text="🎚 سطح دشواری تصویر (۱ تا ۵):", callback_data="noop"),

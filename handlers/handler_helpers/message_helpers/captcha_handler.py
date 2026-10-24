@@ -131,11 +131,33 @@ async def issue_captcha(message: Message, user_id: int, tag: str | int, refreshe
     )
     bio = io.BytesIO(img_bytes)
     bio.name = "captcha.png"
-    await message.reply_photo(
-        photo=bio,
-        caption=caption,
-        reply_markup=build_captcha_keyboard(refreshes_left)
-    )
+    client = getattr(message, "_client", None)
+    chat_id = getattr(getattr(message, "chat", None), "id", user_id) or user_id
+
+    try:
+        if client:
+            await client.send_photo(
+                chat_id=chat_id,
+                photo=bio,
+                caption=caption,
+                reply_markup=build_captcha_keyboard(refreshes_left)
+            )
+        else:
+            await message.reply_photo(
+                photo=bio,
+                caption=caption,
+                reply_markup=build_captcha_keyboard(refreshes_left)
+            )
+    except Exception as e:
+        logger.warning(f"[CAPTCHA] Failed to send captcha photo: {e}")
+        try:
+            await message.reply_photo(
+                photo=bio,
+                caption=caption,
+                reply_markup=build_captcha_keyboard(refreshes_left)
+            )
+        except Exception as e2:
+            logger.error(f"[CAPTCHA] Fallback reply_photo also failed: {e2}")
 
 
 async def refresh_captcha_handler(message: Message, user_id: int) -> None:

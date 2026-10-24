@@ -6,6 +6,10 @@ from pyrogram.types import Message
 from db import model_async
 
 
+_PENDING_CONFIG: dict[int, dict] = {}
+_PENDING_S3: dict[int, dict] = {}
+
+
 def admin_only(func):
     """Decorator to verify if caller is an administrator."""
     @wraps(func)
