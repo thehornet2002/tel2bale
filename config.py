@@ -99,15 +99,19 @@ BALE_PROXY_URL = _normalize_proxy_url(BALE_PROXY)
 
 def _update_env_keys(updates: dict):
     """
-    Update selected keys in .env file while preserving comments and existing variables.
-    Sanitizes values against CRLF injection.
+    Update selected keys in .env file if writable, while preserving comments and existing variables.
+    Sanitizes values against CRLF injection. Does nothing if .env is protected/read-only.
     """
     env_path = ".env"
-    lines = []
+    if not os.path.exists(env_path) or not os.access(env_path, os.W_OK):
+        return
 
-    if os.path.exists(env_path):
+    lines = []
+    try:
         with open(env_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
+    except Exception:
+        return
 
     new_lines = []
     updated_keys = set()
@@ -145,6 +149,11 @@ async def set_max_users(value: int) -> bool:
         old_value = MAX_USERS
         MAX_USERS = value
         try:
+            from db.model_async import set_setting
+            await set_setting("max_users", str(value))
+        except Exception:
+            pass
+        try:
             _update_env_keys({"MAX_USERS": str(value)})
             return True
         except Exception as e:
@@ -161,6 +170,11 @@ async def set_max_active_users(value: int) -> bool:
         old_value = MAX_ACTIVE_USERS
         MAX_ACTIVE_USERS = value
         try:
+            from db.model_async import set_setting
+            await set_setting("max_active_users", str(value))
+        except Exception:
+            pass
+        try:
             _update_env_keys({"MAX_ACTIVE_USERS": str(value)})
             return True
         except Exception as e:
@@ -170,12 +184,17 @@ async def set_max_active_users(value: int) -> bool:
 
 
 async def update_donation_link(new_link: str):
-    """Update donation link in memory and persist in .env file with rollback."""
+    """Update donation link in memory and persist in settings/env."""
     global DONATION_LINK
 
     async with _env_lock:
         old_link = DONATION_LINK
         DONATION_LINK = new_link
+        try:
+            from db.model_async import set_setting
+            await set_setting("donation_link", new_link)
+        except Exception:
+            pass
 
         try:
             _update_env_keys({"DONATION_LINK": DONATION_LINK})
@@ -188,12 +207,17 @@ async def update_donation_link(new_link: str):
 
 
 async def add_ads_channel(channel_id: str):
-    """Add mandatory join channel and persist to .env."""
+    """Add mandatory join channel and persist to settings/env."""
     async with _env_lock:
         if channel_id in ADS_CHANNELS:
             return False
 
         ADS_CHANNELS.append(channel_id)
+        try:
+            from db.model_async import set_setting
+            await set_setting("ads_channels", ",".join(ADS_CHANNELS))
+        except Exception:
+            pass
 
         try:
             _update_env_keys({"TEL_ADS_CHANNELS": ",".join(ADS_CHANNELS)})
@@ -206,12 +230,17 @@ async def add_ads_channel(channel_id: str):
 
 
 async def remove_ads_channel(channel_id: str):
-    """Remove mandatory join channel and persist to .env."""
+    """Remove mandatory join channel and persist to settings/env."""
     async with _env_lock:
         if channel_id not in ADS_CHANNELS:
             return False
 
         ADS_CHANNELS.remove(channel_id)
+        try:
+            from db.model_async import set_setting
+            await set_setting("ads_channels", ",".join(ADS_CHANNELS))
+        except Exception:
+            pass
 
         try:
             _update_env_keys({"TEL_ADS_CHANNELS": ",".join(ADS_CHANNELS)})

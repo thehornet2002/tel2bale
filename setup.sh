@@ -114,6 +114,9 @@ if [ -n "$REDIS_CONF_FILE" ]; then
     grep -q "rename-command EVAL " "$REDIS_CONF_FILE" || echo 'rename-command EVAL ""' >> "$REDIS_CONF_FILE"
     grep -q "rename-command EVALSHA " "$REDIS_CONF_FILE" || echo 'rename-command EVALSHA ""' >> "$REDIS_CONF_FILE"
     grep -q "rename-command SCRIPT " "$REDIS_CONF_FILE" || echo 'rename-command SCRIPT ""' >> "$REDIS_CONF_FILE"
+    # Enforce loopback binding and protected mode
+    grep -q "^bind " "$REDIS_CONF_FILE" || echo 'bind 127.0.0.1' >> "$REDIS_CONF_FILE"
+    grep -q "^protected-mode " "$REDIS_CONF_FILE" || echo 'protected-mode yes' >> "$REDIS_CONF_FILE"
 fi
 
 systemctl enable --now redis-server 2>/dev/null || systemctl enable --now redis 2>/dev/null || true
@@ -280,10 +283,10 @@ if ! id -u "$BOT_USER" >/dev/null 2>&1; then
     useradd --system --no-create-home --shell /usr/sbin/nologin "$BOT_USER" 2>/dev/null || true
 fi
 
-# Ensure strict file ownership and permissions
+# Ensure strict file ownership and permissions (make .env strictly read-only for bot user)
 chown -R "$BOT_USER:$BOT_USER" "$APP_DIR"
 chmod 700 "$APP_DIR/cookies" 2>/dev/null || true
-chmod 600 "$APP_DIR/.env" 2>/dev/null || true
+chmod 400 "$APP_DIR/.env" 2>/dev/null || true
 
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
@@ -305,7 +308,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=$APP_DIR/bot.db $APP_DIR/downloads $APP_DIR/backups $APP_DIR/cookies $APP_DIR/logs $APP_DIR/.env
+ReadWritePaths=$APP_DIR/bot.db $APP_DIR/downloads $APP_DIR/backups $APP_DIR/cookies $APP_DIR/logs
 StandardOutput=journal
 StandardError=journal
 

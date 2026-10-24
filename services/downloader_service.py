@@ -22,6 +22,7 @@ DOWNLOADS_DIR = "downloads"
 # Concurrency limits: Max 3 concurrent downloads globally, 1 per user
 _GLOBAL_DOWNLOAD_SEMAPHORE = asyncio.Semaphore(3)
 _ACTIVE_USER_DOWNLOADS: set[int] = set()
+_ACTIVE_DOWNLOAD_PREFIXES: set[str] = set()
 _USER_LOCK = asyncio.Lock()
 
 # Supported media platforms regexes
@@ -67,12 +68,15 @@ def check_disk_space(required_mb: int = 500) -> bool:
 
 
 def cleanup_stale_downloads(max_age_seconds: int = 3600) -> int:
-    """Purge temporary files older than max_age_seconds in downloads directory."""
+    """Purge temporary files older than max_age_seconds in downloads directory, strictly protecting active downloads."""
     cleaned = 0
     now = time.time()
     try:
         if os.path.exists(DOWNLOADS_DIR):
             for fname in os.listdir(DOWNLOADS_DIR):
+                # Never delete an in-flight active download
+                if any(fname.startswith(prefix) for prefix in _ACTIVE_DOWNLOAD_PREFIXES):
+                    continue
                 fpath = os.path.join(DOWNLOADS_DIR, fname)
                 try:
                     if os.path.isfile(fpath) and (now - os.path.getmtime(fpath) > max_age_seconds):
@@ -395,6 +399,7 @@ async def download_media(
             _ACTIVE_USER_DOWNLOADS.add(user_id)
 
     unique_id = uuid.uuid4().hex[:12]
+    _ACTIVE_DOWNLOAD_PREFIXES.add(unique_id)
     try:
         async with _GLOBAL_DOWNLOAD_SEMAPHORE:
             return await asyncio.wait_for(
@@ -420,6 +425,7 @@ async def download_media(
                     pass
         raise RuntimeError(f"مدت زمان دانلود از سقف زمانی مجاز ({DOWNLOAD_TIMEOUT_SECONDS // 60} دقیقه) فراتر رفت.")
     finally:
+        _ACTIVE_DOWNLOAD_PREFIXES.discard(unique_id)
         if user_id:
             async with _USER_LOCK:
                 _ACTIVE_USER_DOWNLOADS.discard(user_id)

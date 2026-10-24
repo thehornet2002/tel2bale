@@ -4,6 +4,8 @@ import sys
 
 # Ensure project root is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+if not os.getenv("ENCRYPTION_KEY"):
+    os.environ["ENCRYPTION_KEY"] = "test_encryption_key_32_bytes_long_sec!"
 
 from utils.parser import validate_public_https_url
 from handlers.handler_helpers.message_helpers.ads_handler import normalize_telegram_channel_input
@@ -495,6 +497,34 @@ async def test_quota_updates():
     details4 = await get_quota_details(uid)
     assert round(details4["remaining_gb"], 1) == 2.0
 
+    # Idempotent quota reservation test
+    res_id = f"test_res_{uid}"
+    assert await model_async.reserve_download_quota(uid, 500 * 1024 * 1024, reservation_id=res_id) is True
+    # First rollback succeeds and restores quota
+    assert await model_async.release_download_quota(uid, 500 * 1024 * 1024, reservation_id=res_id) is True
+    after_first_rollback = (await get_quota_details(uid))["remaining_gb"]
+    # Second rollback is idempotent and must NOT increase quota again!
+    assert await model_async.release_download_quota(uid, 500 * 1024 * 1024, reservation_id=res_id) is True
+    after_second_rollback = (await get_quota_details(uid))["remaining_gb"]
+    assert after_first_rollback == after_second_rollback
+
+
+async def test_fail_closed_encryption_and_s3():
+    # Encryption test
+    raw_secret = "bale_bot_token_secret_123456"
+    encrypted = model_async.encrypt_credential(raw_secret)
+    assert encrypted.startswith("enc:gcm:v2:")
+    assert encrypted != raw_secret
+    decrypted = model_async.decrypt_credential(encrypted)
+    assert decrypted == raw_secret
+
+    # S3 user_id safety
+    from services import s3_service
+    from unittest.mock import MagicMock
+    mock_session = MagicMock()
+    # Reject 0 or negative or None user_id
+    assert await s3_service.empty_bucket(mock_session, "https://s3.example.com", user_id=0) is False
+    assert await s3_service.empty_bucket(mock_session, "https://s3.example.com", user_id=-1) is False
 
 
 async def main():
@@ -511,6 +541,7 @@ async def main():
     await test_downloader_and_cookies()
     await test_quota_updates()
     await test_prerequisites_and_captcha()
+    await test_fail_closed_encryption_and_s3()
     print("ALL TESTS PASSED SUCCESSFULLY")
 
 

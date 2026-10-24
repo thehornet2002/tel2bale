@@ -80,11 +80,10 @@ async def upload_file(
         safe_ext = re.sub(r"[^a-zA-Z0-9_\.]", "", ext)[:10].lower()
         unique_name = f"{uuid.uuid4().hex}{safe_ext}"
         
-        # User-isolated object key hierarchy
-        if user_id:
-            object_key = f"users/{user_id}/{unique_name}"
-        else:
-            object_key = f"uploads/{unique_name}"
+        # User-isolated object key hierarchy (strictly enforce positive user_id)
+        if user_id is None or user_id <= 0:
+            raise ValueError("user_id is strictly required for S3 storage upload.")
+        object_key = f"users/{user_id}/{unique_name}"
 
         async with session.client("s3", endpoint_url=endpoint_url) as s3:
             try:
@@ -92,10 +91,8 @@ async def upload_file(
             except ClientError as e:
                 error_code = e.response.get('Error', {}).get('Code', '')
                 if error_code in ('404', 'NoSuchBucket'):
-                    logger.info(f"[S3] Bucket '{bucket_name}' does not exist. Creating...")
-                    await s3.create_bucket(Bucket=bucket_name)
-                else:
-                    raise e
+                    raise RuntimeError(f"باکت S3 '{bucket_name}' وجود ندارد. لطفاً ابتدا باکت را در پنل ابری خود ایجاد فرمایید.")
+                raise e
 
             with open(file_path, "rb") as file_data:
                 try:

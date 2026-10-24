@@ -199,6 +199,17 @@ async def create_tables() -> None:
             )
         """)
 
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS download_reservations (
+                reservation_id TEXT PRIMARY KEY,
+                telegram_id    INTEGER NOT NULL,
+                size_bytes     INTEGER NOT NULL,
+                status         TEXT NOT NULL,
+                created_at     TEXT DEFAULT (datetime('now','localtime'))
+            )
+        """)
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_res_user ON download_reservations (telegram_id)")
+
     await init_cache()
     await migrate_legacy_credentials()
     await init_redis(config.REDIS_URL)
@@ -286,6 +297,29 @@ async def init_cache() -> None:
         _CAPTCHA_LENGTH = max(4, min(10, int(saved_len)))
     except ValueError:
         _CAPTCHA_LENGTH = 5
+
+    # Load dynamic runtime settings into config
+    saved_donation = await get_setting("donation_link", "")
+    if saved_donation:
+        config.DONATION_LINK = saved_donation
+
+    saved_max_u = await get_setting("max_users", "")
+    if saved_max_u:
+        try:
+            config.MAX_USERS = int(saved_max_u)
+        except ValueError:
+            pass
+
+    saved_max_au = await get_setting("max_active_users", "")
+    if saved_max_au:
+        try:
+            config.MAX_ACTIVE_USERS = int(saved_max_au)
+        except ValueError:
+            pass
+
+    saved_channels = await get_setting("ads_channels", "")
+    if saved_channels:
+        config.ADS_CHANNELS = [c.strip() for c in saved_channels.split(",") if c.strip()]
 
 
 async def get_setting(key: str, default: str = "") -> str:
@@ -523,7 +557,7 @@ async def set_limit_download(tg_id: int, limit: float) -> bool:
         logger.debug(f"[MODEL-ASYNC] Download limit updated for user {tg_id}")
     return success
 
-async def reserve_download_quota(tg_id: int, file_size_bytes: int | None) -> bool:
+async def reserve_download_quota(tg_id: int, file_size_bytes: int | None, reservation_id: str | None = None) -> bool:
     """
     Atomically checks and reserves user download quota.
 
@@ -577,6 +611,12 @@ async def reserve_download_quota(tg_id: int, file_size_bytes: int | None) -> boo
             WHERE telegram_id = ?
         """, (new_downloaded_volume, tg_id))
 
+        if reservation_id:
+            await db.execute("""
+                INSERT OR REPLACE INTO download_reservations (reservation_id, telegram_id, size_bytes, status)
+                VALUES (?, ?, ?, 'reserved')
+            """, (reservation_id, tg_id, file_size_bytes))
+
         logger.debug(
             f"[MODEL-ASYNC] Quota reserved for user {tg_id}: "
             f"{new_downloaded_volume:.6f}GB"
@@ -584,10 +624,11 @@ async def reserve_download_quota(tg_id: int, file_size_bytes: int | None) -> boo
         return True
 
 
-async def release_download_quota(tg_id: int, file_size_bytes: int | None) -> bool:
+async def release_download_quota(tg_id: int, file_size_bytes: int | None, reservation_id: str | None = None) -> bool:
     """
-    Atomically rolls back a previously reserved quota amount.
-    Use this when the transfer/upload fails after reserve_download_quota succeeded.
+    Atomically rolls back a previously reserved quota amount with idempotency guarantees.
+    If reservation_id is provided, verifies that reservation is still 'reserved' and marks it 'rolled_back'
+    so double-rollbacks are impossible.
     """
     if not file_size_bytes or file_size_bytes <= 0:
         return True
@@ -595,6 +636,16 @@ async def release_download_quota(tg_id: int, file_size_bytes: int | None) -> boo
     file_size_gb = file_size_bytes / (1024 ** 3)
 
     async with get_async_db_immediate() as db:
+        if reservation_id:
+            cursor = await db.execute("""
+                UPDATE download_reservations
+                SET status = 'rolled_back'
+                WHERE reservation_id = ? AND status = 'reserved'
+            """, (reservation_id,))
+            if cursor.rowcount == 0:
+                # Already rolled back or committed; do not deduct twice
+                return True
+
         cursor = await db.execute("""
             SELECT downloaded_volume
             FROM users
@@ -626,6 +677,19 @@ async def release_download_quota(tg_id: int, file_size_bytes: int | None) -> boo
             f"{new_downloaded_volume:.6f}GB"
         )
         return True
+
+
+async def commit_download_quota(reservation_id: str | None) -> bool:
+    """Commit quota reservation so it can no longer be rolled back."""
+    if not reservation_id:
+        return True
+    async with get_async_db() as db:
+        await db.execute("""
+            UPDATE download_reservations
+            SET status = 'committed'
+            WHERE reservation_id = ? AND status = 'reserved'
+        """, (reservation_id,))
+    return True
 
 
 async def set_limit_download_all(limit: float) -> None:
@@ -766,19 +830,18 @@ _ENC_PREFIX = "enc:gcm:v2:"
 def _get_encryption_key(salt: bytes) -> bytes:
     """
     Derive a 256-bit AES key using PBKDF2 with 100,000 iterations and per-record salt.
-    Enforces fail-closed: requires ENCRYPTION_KEY or fallback seed.
+    Enforces strictly fail-closed: requires ENCRYPTION_KEY without any fallback.
     """
+    if not HAS_CRYPTOGRAPHY:
+        raise RuntimeError("The 'cryptography' package is required for secure credential encryption.")
+
     seed = (
         getattr(config, "ENCRYPTION_KEY", None)
         or os.getenv("ENCRYPTION_KEY")
-        or getattr(config, "TEL_BOT_TOKEN", None)
-        or os.getenv("TEL_BOT_TOKEN")
-        or getattr(config, "TEL_API_HASH", None)
-        or os.getenv("TEL_API_HASH")
-        or "tel2bale_default_fallback_seed_v1"
+        or ""
     ).strip()
-    if not seed or not HAS_CRYPTOGRAPHY:
-        raise RuntimeError("ENCRYPTION_KEY is required but missing or cryptography package is unavailable.")
+    if not seed:
+        raise RuntimeError("ENCRYPTION_KEY is required and must be configured in environment or .env.")
 
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -863,6 +926,21 @@ async def migrate_legacy_credentials() -> None:
                     logger.info(f"[CRYPTO-MIGRATION] Encrypted plaintext credentials for user {t_id}")
         finally:
             await cursor.close()
+
+        # Post-migration verification: Ensure zero plaintext credentials remain
+        check_cursor = await db.execute("""
+            SELECT COUNT(*) AS cnt FROM users 
+            WHERE (bale_token IS NOT NULL AND bale_token != '' AND NOT bale_token LIKE 'enc:gcm:%')
+               OR (access_key IS NOT NULL AND access_key != '' AND NOT access_key LIKE 'enc:gcm:%')
+               OR (secret_key IS NOT NULL AND secret_key != '' AND NOT secret_key LIKE 'enc:gcm:%')
+        """)
+        try:
+            row = await check_cursor.fetchone()
+            unmigrated = row["cnt"] if row else 0
+            if unmigrated > 0:
+                raise RuntimeError(f"Credential migration verification failed: {unmigrated} plaintext records remain.")
+        finally:
+            await check_cursor.close()
 
 
 # =========================

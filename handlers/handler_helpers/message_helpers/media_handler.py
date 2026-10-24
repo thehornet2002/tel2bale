@@ -238,9 +238,10 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
         return
 
     file_size_mb = file_size / (1024 * 1024)
+    res_id = f"res_{token}"
 
-    # Atomic quota reservation
-    has_quota = await reserve_download_quota(user_id, file_size)
+    # Atomic quota reservation with tracked reservation ID
+    has_quota = await reserve_download_quota(user_id, file_size, reservation_id=res_id)
     if not has_quota:
         if os.path.exists(file_path):
             try:
@@ -300,8 +301,11 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
             bale_caption = f"🎬 {title}\n📦 حجم: {file_size_mb:.1f} MB\n🔗 لینک دانلود مستقیم (یک ساعته):\n{link}"
             await bale_bot.send_message(bot_token, bale_id, bale_caption)
 
+        # Finalize and commit quota reservation so it cannot be rolled back
+        await model_async.commit_download_quota(res_id)
+
     except s3_service.S3StorageQuotaExceeded:
-        await model_async.release_download_quota(user_id, file_size)
+        await model_async.release_download_quota(user_id, file_size, reservation_id=res_id)
         from utils.keyboards import build_s3_purge_confirmation_keyboard
         try:
             await callback.message.edit_text(
@@ -313,7 +317,7 @@ async def execute_media_download(callback: CallbackQuery, user_id: int, token: s
             pass
         return
     except Exception as e:
-        await model_async.release_download_quota(user_id, file_size)
+        await model_async.release_download_quota(user_id, file_size, reservation_id=res_id)
         logger.error(f"[MEDIA] Forwarding downloaded media to Bale failed: {e}")
         try:
             await callback.message.edit_text(
